@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/teamai-cli-logo.svg" alt="teamai-cli" width="430">
+</p>
+
 # TeamAI — The team harness for AI agents
 
 > [English](README.md) | [简体中文](README.zh-CN.md)
@@ -79,8 +83,17 @@ The CLI picks a provider automatically from the repo URL:
 | `teamai source` | Manage cross-team skill subscription sources (`add`/`remove`/`list`/`browse`) |
 | `teamai contribute --file <path> [--scope <user\|project>]` | Push an AI-generated experience document to the team repo |
 | `teamai recall <query>` | Search the team knowledge base, automatically merging user + project scope results |
+| `teamai import --from-repo <url>` | Clone a remote repo and generate a per-repo summary under `docs/team-codebase/repos/<slug>.md`; AI recommends a business domain and persists the assignment to `.teamai/domains.yaml` |
+| `teamai import --from-repo-list <yaml>` | Batch import a whitelist of repos with concurrency control, then aggregate the results into per-domain views |
+| `teamai import --from-org <org> --bootstrap` | List every repo under an organization (GitHub or TGit), AI-cluster them into business domains, and run an interactive review before the first full sync |
+| `teamai import --from-iwiki <id> [--iwiki-dual]` | Import iWiki documents as learnings; in dual mode also extract business-API / external-knowledge / glossary sections into `docs/team-codebase/external-knowledge.md` |
+| `teamai cache --status \| --gc` | Inspect or garbage-collect the shallow-clone cache at `~/.teamai/cache/repos/` (LRU + size cap, default 5GB) |
+| `teamai codebase --lint [--fix]` | Cross-file consistency lint over `docs/team-codebase` and `.teamai/`; reports anchor / orphan / source-invalid / sync-stale issues; `--fix` applies low-risk mechanical fixes |
+| `teamai review [id] [--apply \| --reject \| --all-apply]` | Inspect and process pending codebase changes from `.teamai/pending-review.jsonl`; `--apply` patches in place via section anchors |
+| `teamai domains drift [url] [--apply \| --lock \| --apply-all]` | Inspect and resolve domain-drift signals; `--apply` reassigns the repo to the recommended domain and refreshes the aggregate views |
 | `teamai digest` | Generate a team AI usage weekly digest (skill leaderboard, new/updated skills, session summaries) |
 | `teamai hooks` | Manage AI-tool hooks (list / inject / remove) |
+| `teamai ci extract-mr --url <url> [--mode comment\|write\|both] [--individual-comments]` | CI pipeline integration: extract knowledge from MR/PR, post as comments, and write to team repo after merge. With `--individual-comments`, each suggestion is posted separately with reaction/reject support (GitHub 👎 / TGit ☝️) |
 | `teamai uninstall [--force]` | Uninstall teamai: remove hooks, rules, skills, env, docs, and `~/.teamai/` |
 | `teamai doctor` | Diagnose configuration problems |
 
@@ -292,6 +305,42 @@ Author: alice | Score: 12.0 | Tags: fuse, deploy
 - Searches implicitly upvote matched docs; good docs naturally float up over time.
 - Votes are written to each scope's own repo, so attribution stays correct.
 
+`teamai recall` results carry a `[<type>]` tag so callers can quickly tell which knowledge bucket a hit came from. The shared search index covers four categories:
+
+| Type | Source | Notes |
+|------|--------|-------|
+| `[learnings]` | `~/.teamai/learnings/*.md` | session experience documents |
+| `[docs]` | team repo `docs/**/*.md` | shared project knowledge |
+| `[rules]` | team repo `rules/**/*.md` | coding rules and conventions |
+| `[skills]` | team repo `skills/<name>/SKILL.md` | reusable AI skills |
+
+The index is rebuilt automatically on every `teamai pull`. Indexes built by older versions (no `version` field or missing `type`) are detected and rebuilt transparently on first use.
+
+### TodoWrite reminder hook
+
+`teamai pull` registers a PostToolUse hook on the `TodoWrite` tool. The first time a session writes a TODO list, the hook injects a one-time reminder asking the agent to invoke `teamai-recall` if it has not already done so. Per-session deduplication uses `~/.teamai/sessions/<sid>-todowrite-hint.json` (24 h TTL).
+
+To disable the reminder globally, set:
+
+```bash
+export TEAMAI_RECALL_DISABLED=1
+```
+
+The same env var also disables the auto-recall hook.
+
+### `agents` resource type
+
+The team repo can ship custom subagent definitions under a flat `agents/` directory (one `*.md` file per agent). They follow the same push / pull / remove semantics as `rules`:
+
+```text
+team-repo/
+  agents/
+    code-reviewer.md      # team-authored subagent
+    .removed              # tombstone (auto-managed by `teamai remove agents <name>`)
+```
+
+`teamai pull` copies them into every Tier-1 tool's `agents/` directory (e.g. `~/.claude/agents/`). The CLI built-in `teamai-recall.md` is deployed alongside team agents and is **excluded** from `teamai push` (it is CLI-managed, not team-managed).
+
 ## Update
 
 ```bash
@@ -316,6 +365,42 @@ Auto-update runs on the Stop hook at the end of a session. It can be controlled 
 | User override | `~/.teamai/config.yaml` | `updatePolicy` | `auto` / `prompt` / `skip` |
 
 The user-level `updatePolicy` always wins over the team-level `autoUpdate`.
+
+## CI Integration
+
+TeamAI can integrate into your CI pipeline to automatically extract knowledge from every MR/PR:
+
+```
+MR opened/updated → CI extracts learning + codebase suggestions → posts as comments
+    → Reviewer rejects unwanted suggestions (GitHub 👎 / TGit ☝️)
+    → MR merged → CI writes approved items to team knowledge repo
+```
+
+### Quick Start
+
+```bash
+# Comment mode: post suggestions to MR (run on PR open/update)
+teamai ci extract-mr --url "$MR_URL" --mode comment --individual-comments
+
+# Write mode: write approved items to knowledge repo (run after merge)
+teamai ci extract-mr --url "$MR_URL" --mode write --team-repo ./team-repo --individual-comments
+```
+
+### CI Templates
+
+Ready-to-use templates in `examples/ci/`:
+
+| File | Platform |
+|------|----------|
+| `github-actions-mr-extract.yml` | GitHub Actions |
+| `coding-ci-mr-extract.yaml` | Coding CI (TGit + ZhiYan QCI) |
+
+### Reject Interaction
+
+| Platform | How to reject | Default |
+|----------|--------------|---------|
+| GitHub | Add 👎 reaction to the suggestion comment | Write all |
+| TGit | Add ☝️ emoji to the suggestion note | Write all |
 
 ## License
 

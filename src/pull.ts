@@ -17,8 +17,11 @@ import {
   TEAMAI_CULTURE_END,
   TEAMAI_CLAUDEMD_START,
   TEAMAI_CLAUDEMD_END,
+  TEAMAI_RECALL_RULES_START,
+  TEAMAI_RECALL_RULES_END,
   CultureFrontmatterSchema,
   resolveBaseDir,
+  isWikiEnabled,
   getTeamaiHome,
 } from './types.js';
 import type { CultureFrontmatter } from './types.js';
@@ -254,6 +257,15 @@ async function pullForScope(
       const state = await loadStateForScope(localConfig.scope, localConfig.projectRoot);
       if (state.lastPullRev && state.lastPullRev === currentRev) {
         log.success(`[${scopeLabel}] Already synced at ${currentRev}, skipping`);
+        // 即使 repo 未变化，仍部署 CLI 内置资源（确保 CLI 升级后新版本 agent/rules 生效）
+        if (!options.dryRun) {
+          const cfg = await loadTeamConfig(localConfig.repo.localPath);
+          if (cfg) {
+            try { const { deployBuiltinAgents } = await import('./builtin-agents.js'); await deployBuiltinAgents(cfg, localConfig); } catch {}
+            try { const { deployBuiltinRules } = await import('./builtin-rules.js'); await deployBuiltinRules(cfg, localConfig); } catch {}
+            try { const { deployBuiltinSkills } = await import('./builtin-skills.js'); await deployBuiltinSkills(cfg, localConfig, { skipWiki: !isWikiEnabled() }); } catch {}
+          }
+        }
         return;
       }
     } catch {
@@ -283,7 +295,10 @@ async function pullForScope(
   const subscribedTags = localConfig.subscribedTags;
 
   // Step 2: Sync each resource type
-  const resourceTypes: ResourceType[] = ['skills', 'rules', 'docs', 'env', 'wiki'];
+  const wikiEnabled = isWikiEnabled();
+  const resourceTypes: ResourceType[] = wikiEnabled
+    ? ['skills', 'rules', 'docs', 'env', 'wiki', 'agents']
+    : ['skills', 'rules', 'docs', 'env', 'agents'];
   let totalSynced = 0;
   let desiredSkillNames: Set<string> | null = null;
   let knownRepoSkillNames: Set<string> | null = null;
@@ -417,11 +432,11 @@ async function pullForScope(
     const tombstoneTypes: {
       type: ResourceType;
       ext?: string;
-      toolPathField: 'rules' | 'skills' | 'wiki';
+      toolPathField: 'rules' | 'skills' | 'agents';
     }[] = [
       { type: 'rules', ext: '.md', toolPathField: 'rules' },
       { type: 'skills', toolPathField: 'skills' },
-      { type: 'wiki', ext: '.md', toolPathField: 'wiki' },
+      { type: 'agents', ext: '.md', toolPathField: 'agents' },
     ];
 
     const baseDir = resolveBaseDir(localConfig);
@@ -443,6 +458,25 @@ async function pullForScope(
           }
         }
       }
+    }
+
+    // Wiki tombstone cleanup: wiki is now in shared location, not per-tool
+    try {
+      const wikiHandler = getHandler('wiki');
+      const wikiTombstones = await wikiHandler.readTombstones(localConfig);
+      if (wikiTombstones.size > 0) {
+        const teamaiHome = getTeamaiHome(localConfig.scope, localConfig.projectRoot);
+        const wikiDir = path.join(teamaiHome, 'wiki');
+        for (const name of wikiTombstones) {
+          const wikiPath = path.join(wikiDir, `${name}.md`);
+          if (await pathExists(wikiPath)) {
+            await remove(wikiPath);
+            log.debug(`[${scopeLabel}] Cleaned up tombstoned wiki ${name} from shared wiki`);
+          }
+        }
+      }
+    } catch (e) {
+      log.debug(`[${scopeLabel}] Wiki tombstone cleanup skipped: ${(e as Error).message}`);
     }
 
     if (roleContext) {
@@ -491,31 +525,86 @@ async function pullForScope(
     await saveStateForScope(state, localConfig.scope, localConfig.projectRoot);
   }
 
-  // Step 3.5: Sync learnings and rebuild search index (user scope only)
-  if (!options.dryRun && localConfig.scope === 'user') {
+  // Step 3.5: Sync learnings and rebuild the multi-category search index
+  // (Phase 1: covers learnings + docs + rules + skills). Both scopes supported.
+  if (!options.dryRun) {
     try {
       const learningsRepoDir = path.join(localConfig.repo.localPath, 'learnings');
-      if (await pathExists(learningsRepoDir)) {
-        await fse.copy(learningsRepoDir, LEARNINGS_LOCAL_DIR, {
-          overwrite: true,
-          filter: (src: string) => !path.basename(src).startsWith('.'),
+      const docsRepoDir = path.join(localConfig.repo.localPath, 'docs');
+      const rulesRepoDir = path.join(localConfig.repo.localPath, 'rules');
+      const skillsRepoDir = path.join(localConfig.repo.localPath, 'skills');
+      const votesDir = path.join(localConfig.repo.localPath, 'votes');
+
+      // user scope: sync learnings to ~/.teamai/learnings/ (legacy behavior)
+      // project scope: use learnings directly from repo
+      let learningsCount = 0;
+      let effectiveLearningsDir: string | undefined;
+      if (localConfig.scope === 'user') {
+        if (await pathExists(learningsRepoDir)) {
+          await fse.copy(learningsRepoDir, LEARNINGS_LOCAL_DIR, {
+            overwrite: true,
+            filter: (src: string) => !path.basename(src).startsWith('.'),
+          });
+          const allFiles = await listFiles(learningsRepoDir);
+          learningsCount = allFiles.filter((f) => f.endsWith('.md')).length;
+        }
+        effectiveLearningsDir = await pathExists(LEARNINGS_LOCAL_DIR) ? LEARNINGS_LOCAL_DIR : undefined;
+      } else {
+        effectiveLearningsDir = await pathExists(learningsRepoDir) ? learningsRepoDir : undefined;
+        if (effectiveLearningsDir) {
+          const allFiles = await listFiles(learningsRepoDir);
+          learningsCount = allFiles.filter((f) => f.endsWith('.md')).length;
+        }
+      }
+
+      // Build the index when ANY of the four categories has content.
+      const hasAnySource =
+        effectiveLearningsDir ||
+        await pathExists(docsRepoDir) ||
+        await pathExists(rulesRepoDir) ||
+        await pathExists(skillsRepoDir);
+
+      // Resolve codebase directory (project cwd or team repo)
+      const cwdCodebaseDir = path.join(process.cwd(), 'docs', 'team-codebase');
+      const repoCodebaseDir = path.join(localConfig.repo.localPath, 'docs', 'team-codebase');
+      const effectiveCodebaseDir = await pathExists(cwdCodebaseDir) ? cwdCodebaseDir
+        : await pathExists(repoCodebaseDir) ? repoCodebaseDir : undefined;
+
+      if (hasAnySource || effectiveCodebaseDir) {
+        const votesExist = await pathExists(votesDir);
+        const teamaiHome = getTeamaiHome(localConfig.scope, localConfig.projectRoot);
+        const indexPath = path.join(teamaiHome, 'search-index.json');
+        const { buildIndex } = await import('./utils/search-index.js');
+        const elapsed = await buildIndex({
+          learningsDir: effectiveLearningsDir,
+          docsDir: await pathExists(docsRepoDir) ? docsRepoDir : undefined,
+          rulesDir: await pathExists(rulesRepoDir) ? rulesRepoDir : undefined,
+          skillsDir: await pathExists(skillsRepoDir) ? skillsRepoDir : undefined,
+          codebaseDir: effectiveCodebaseDir,
+          votesDir: votesExist ? votesDir : undefined,
+          indexPath,
         });
-        const allFiles = await listFiles(learningsRepoDir);
-        const mdFiles = allFiles.filter((f) => f.endsWith('.md'));
-        if (mdFiles.length > 0) {
-          const votesDir = path.join(localConfig.repo.localPath, 'votes');
-          const votesExist = await pathExists(votesDir);
-          const { buildIndex } = await import('./utils/search-index.js');
-          const elapsed = await buildIndex(
-            LEARNINGS_LOCAL_DIR,
-            votesExist ? votesDir : undefined,
-          );
-          log.success(`Synced ${mdFiles.length} learnings (index: ${elapsed}ms)`);
+        if (learningsCount > 0) {
+          log.success(`Synced ${learningsCount} learnings (index: ${elapsed}ms)`);
+        } else {
+          log.debug(`[${scopeLabel}] Built multi-category search index in ${elapsed}ms`);
         }
       }
     } catch (e) {
-      log.debug(`Learnings sync skipped: ${(e as Error).message}`);
+      log.debug(`Learnings/index sync skipped: ${(e as Error).message}`);
     }
+  }
+
+  // Step 3.5b: Sync domains.yaml from team repo to local .teamai/
+  if (!options.dryRun) {
+    try {
+      const teamDomainsPath = path.join(localConfig.repo.localPath, '.teamai', 'domains.yaml');
+      if (await pathExists(teamDomainsPath)) {
+        const localDomainsDir = path.join(process.cwd(), '.teamai');
+        await fse.ensureDir(localDomainsDir);
+        await fse.copy(teamDomainsPath, path.join(localDomainsDir, 'domains.yaml'), { overwrite: true });
+      }
+    } catch { /* non-critical */ }
   }
 
   // Step 3.6: Inject team culture into CLAUDE.md
@@ -577,11 +666,48 @@ async function pullForScope(
     }
   }
 
+  // Step 3.8: Inject teamai-recall subagent rules block (Phase 1)
+  //
+  // Only injected for Tier-1 tools that have BOTH `agents` and `claudemd`
+  // configured. Tools without subagent support (cursor / codex / openclaw /
+  // workbuddy) are skipped — for them the recall flow runs purely via hooks
+  // (auto-recall, TodoWrite hint) and the manual `teamai recall` command.
+  if (!options.dryRun) {
+    try {
+      const baseDir = resolveBaseDir(localConfig);
+      const recallBlock = compileRecallRulesBlock();
+      let injected = 0;
+      for (const [tool, toolPath] of Object.entries(freshConfig.toolPaths)) {
+        if (!toolPath.claudemd || !toolPath.agents) continue;
+        if (!await ResourceHandler.isToolInstalled(toolPath.agents, baseDir)) continue;
+
+        const claudeMdPath = path.join(baseDir, toolPath.claudemd);
+        try {
+          await injectClaudeMdSection(
+            claudeMdPath,
+            TEAMAI_RECALL_RULES_START,
+            TEAMAI_RECALL_RULES_END,
+            recallBlock,
+          );
+          injected++;
+          log.debug(`Injected recall rules into ${tool} CLAUDE.md`);
+        } catch (e) {
+          log.warn(`Failed to inject recall rules into ${tool} CLAUDE.md: ${(e as Error).message}`);
+        }
+      }
+      if (injected > 0) {
+        log.debug(`[${scopeLabel}] Injected recall rules into ${injected} tool(s) CLAUDE.md`);
+      }
+    } catch (e) {
+      log.debug(`[${scopeLabel}] Recall rules injection skipped: ${(e as Error).message}`);
+    }
+  }
+
   // Step 4: Deploy CLI built-in skills
   if (!options.dryRun) {
     try {
       const { deployBuiltinSkills } = await import('./builtin-skills.js');
-      const deployed = await deployBuiltinSkills(freshConfig, localConfig);
+      const deployed = await deployBuiltinSkills(freshConfig, localConfig, { skipWiki: !wikiEnabled });
       if (deployed > 0) {
         log.debug(`[${scopeLabel}] Deployed ${deployed} built-in skill(s)`);
       }
@@ -603,18 +729,25 @@ async function pullForScope(
     }
   }
 
-  // Step 5: Auto-report usage data (user scope only)
-  if (!options.dryRun && localConfig.scope === 'user') {
+  // Step 4.6: Deploy CLI built-in agents (e.g. teamai-recall subagent)
+  if (!options.dryRun) {
     try {
-      const { reportUsageToTeam } = await import('./team-push.js');
-      await reportUsageToTeam(localConfig.repo.localPath, localConfig.username);
+      const { deployBuiltinAgents } = await import('./builtin-agents.js');
+      const deployed = await deployBuiltinAgents(freshConfig, localConfig);
+      if (deployed > 0) {
+        log.debug(`[${scopeLabel}] Deployed built-in agents to ${deployed} location(s)`);
+      }
     } catch (e) {
-      log.error(`Auto-report skipped: ${(e as Error).message}`);
+      log.debug(`[${scopeLabel}] Built-in agents deployment skipped: ${(e as Error).message}`);
     }
   }
 
-  // Step 6: Show skill recommendations (user scope only)
-  if (!options.silent && !options.dryRun && localConfig.scope === 'user') {
+  // Step 5: Auto-report usage data — handled centrally in pull() to avoid
+  // double-truncation when both user and project scopes share events.
+  // (no-op here; see pull() for the unified reporting logic)
+
+  // Step 6: Show skill recommendations
+  if (!options.silent && !options.dryRun) {
     try {
       const YAML = (await import('yaml')).default;
       const { listFiles, readFileSafe } = await import('./utils/fs.js');
@@ -735,6 +868,61 @@ export function compileClaudemd(contents: string[]): string | null {
 }
 
 /**
+ * Build the CLAUDE.md block that instructs the main conversation to:
+ *   1. Invoke the `teamai-recall` subagent before starting any task that
+ *      involves code changes / troubleshooting / design.
+ *   2. Declare which doc_ids were actually consulted at task completion.
+ *
+ * Only injected for Tier-1 tools (those with both `agents` and `claudemd`
+ * paths configured) — see pull.ts Step 3.8.
+ */
+export function compileRecallRulesBlock(): string {
+    const lines = [
+        TEAMAI_RECALL_RULES_START,
+        '<!-- DO NOT EDIT: This section is auto-managed by teamai -->',
+        '',
+        '## Team Knowledge Recall (teamai)',
+        '',
+        '**Before** starting any task that involves code changes, debugging,',
+        'or design decisions, you **MUST** first invoke the `teamai-recall`',
+        'subagent via the Agent tool with a concise natural-language',
+        'description of the task. The subagent will return a compact summary',
+        'of relevant team knowledge (skills, learnings, docs, rules) without',
+        'polluting this conversation with raw content.',
+        '',
+        '**Important constraints on agent sequencing:**',
+        '1. Always invoke `teamai-recall` subagent **first and alone** — never',
+        '   launch it in parallel with Explore or other research agents.',
+        '2. After recall returns results, use Read to get full content of the',
+        '   returned files if you need more detail. Do NOT launch Explore agents',
+        '   to search for the same topics — recall results + Read is the complete',
+        '   workflow for accessing team knowledge.',
+        '3. Explore/research agents have their own scope and must NOT overlap',
+        '   with recall:',
+        '   - **recall subagent covers:** team learnings, codebase docs, skills,',
+        '     rules, and anything under `.teamai/`, `learnings/`, `docs/team-codebase/`.',
+        '   - **Explore agents cover:** navigating source code in the current',
+        '     working directory, and web search for external information.',
+        '   - Explore agents must never search paths covered by recall.',
+        '',
+        '**After** completing the task, in your final reply you **MUST**',
+        'declare which knowledge entries were actually referenced, using an',
+        'HTML comment of the form:',
+        '',
+        '```',
+        '<!-- teamai:referenced-doc-ids: [doc-id-1, doc-id-2] -->',
+        '```',
+        '',
+        'If the recall returned no relevant hits, declare an empty list',
+        '(`<!-- teamai:referenced-doc-ids: [] -->`). Do not skip the',
+        'declaration — downstream tooling parses it to credit knowledge use.',
+        '',
+        TEAMAI_RECALL_RULES_END,
+    ];
+    return lines.join('\n');
+}
+
+/**
  * Collect claudemd .md files filtered by the user's active knowledge namespaces.
  *
  * Walks claudemd/<namespace>/*.md for each active namespace.
@@ -773,11 +961,51 @@ async function collectClaudemdFiles(
 }
 
 /**
+ * Auto-migrate hooks from old individual format to unified hook-dispatch format.
+ * Runs at session start: if settings.json doesn't contain 'hook-dispatch' commands,
+ * it means the user updated the CLI but hooks are still in old format.
+ * Reinjects with the current version's hook definitions.
+ */
+async function autoMigrateHooksIfNeeded(): Promise<void> {
+  const home = process.env.HOME ?? '';
+  // Quick check: read the primary settings file and see if it has hook-dispatch
+  const primarySettings = path.join(home, '.claude', 'settings.json');
+  if (!await pathExists(primarySettings)) return;
+
+  const content = await readFileSafe(primarySettings);
+  if (!content) return;
+
+  // If hook-dispatch is already present, no migration needed
+  if (content.includes('hook-dispatch')) return;
+
+  // If no teamai hooks at all (user never ran init), skip
+  if (!content.includes('teamai')) return;
+
+  // Old format detected — reinject all tools
+  log.debug('Auto-migrating hooks to dispatch format...');
+  const { autoDetectInit } = await import('./config.js');
+  const { injectHooksToAllTools } = await import('./hooks.js');
+  const { localConfig, teamConfig } = await autoDetectInit();
+  const baseDir = resolveBaseDir(localConfig);
+  await injectHooksToAllTools(teamConfig.toolPaths, baseDir);
+  log.debug('Hooks migrated to dispatch format');
+}
+
+/**
  * Main pull entry point.
  * Implements Scheme B: user scope is always pulled (baseline),
  * project scope is additionally pulled if detected in cwd.
  */
 export async function pull(options: GlobalOptions): Promise<void> {
+  // 0. Auto-migrate hooks if settings.json has old format (pre-dispatch era).
+  //    This runs on the first session start after a CLI update — the new binary
+  //    detects the old individual hooks and reinjects the merged dispatch format.
+  try {
+    await autoMigrateHooksIfNeeded();
+  } catch {
+    // Non-fatal — pull continues even if hook migration fails
+  }
+
   // 1. Always try to pull user scope
   let userConfig: LocalConfig | null = null;
   try {
@@ -801,7 +1029,35 @@ export async function pull(options: GlobalOptions): Promise<void> {
     log.warn(`Project-scope pull error: ${(e as Error).message}`);
   }
 
-  // 3. Pull cross-team source skills (runs outside pullForScope to bypass fast-path)
+  // 3. Auto-report usage data to all active scopes. Events live in a single
+  //    shared file (~/.teamai/usage.jsonl), so we report to each repo with
+  //    skipTruncate=true first, then truncate once at the end.
+  if (!options.dryRun) {
+    try {
+      const { reportUsageToTeam } = await import('./team-push.js');
+      const { truncateUsageAfterReport, readUsageEvents } = await import('./usage-tracker.js');
+      const projectConfig = await detectProjectConfig();
+      const targets: Array<{ repoPath: string; username: string }> = [];
+      if (projectConfig) targets.push({ repoPath: projectConfig.repo.localPath, username: projectConfig.username });
+      if (userConfig) targets.push({ repoPath: userConfig.repo.localPath, username: userConfig.username });
+
+      const eventCount = (await readUsageEvents()).length;
+      for (const t of targets) {
+        try {
+          await reportUsageToTeam(t.repoPath, t.username, { skipTruncate: true });
+        } catch (e) {
+          log.error(`Auto-report to ${t.repoPath} skipped: ${(e as Error).message}`);
+        }
+      }
+      if (eventCount > 0 && targets.length > 0) {
+        await truncateUsageAfterReport(eventCount);
+      }
+    } catch (e) {
+      log.debug(`Auto-report skipped: ${(e as Error).message}`);
+    }
+  }
+
+  // 4. Pull cross-team source skills (runs outside pullForScope to bypass fast-path)
   if (userConfig) {
     try {
       const { pullSources } = await import('./source.js');

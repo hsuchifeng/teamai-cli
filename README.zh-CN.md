@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/teamai-cli-logo.svg" alt="teamai-cli" width="430">
+</p>
+
 # TeamAI — The team harness for AI agents
 
 > [English](README.md) | [简体中文](README.zh-CN.md)
@@ -79,8 +83,17 @@ CLI 会根据用户传入的 repo URL 自动选择 provider：
 | `teamai source` | 管理跨团队 skill 订阅源（`add`/`remove`/`list`/`browse`） |
 | `teamai contribute --file <path> [--scope <user\|project>]` | 将 AI 生成的经验文档推送到团队仓库 |
 | `teamai recall <query>` | 搜索团队知识库，自动合并 user + project 双 scope 结果 |
+| `teamai import --from-repo <url>` | 拉取远端仓库并生成单仓视图 `docs/team-codebase/repos/<slug>.md`；AI 推荐业务域并写入 `.teamai/domains.yaml` |
+| `teamai import --from-repo-list <yaml>` | 按白名单批量导入多个仓库（支持并发），并按业务域聚合产出 |
+| `teamai import --from-org <org> --bootstrap` | 列出组织/group 下所有仓库（GitHub / TGit），AI 聚类为业务域，交互式 review 后完成首次全量同步 |
+| `teamai import --from-iwiki <id> [--iwiki-dual]` | 把 iWiki 文档导入为 learnings；dual 模式同时把业务接口 / 外部知识源 / 术语表抽取到 `docs/team-codebase/external-knowledge.md` |
+| `teamai cache --status \| --gc` | 查看或回收 shallow-clone 缓存目录 `~/.teamai/cache/repos/`（LRU + 容量上限，默认 5GB） |
+| `teamai codebase --lint [--fix]` | 对 `docs/team-codebase` 与 `.teamai/` 做跨文件一致性 lint；报告锚点 / 孤儿 / 源失效 / 同步陈旧等问题；`--fix` 应用低风险机械修复 |
+| `teamai review [id] [--apply \| --reject \| --all-apply]` | 浏览并处理 `.teamai/pending-review.jsonl` 中的待审 codebase 变更；`--apply` 通过章节锚点原地写入 |
+| `teamai domains drift [url] [--apply \| --lock \| --apply-all]` | 浏览并处理域漂移信号；`--apply` 把仓库重新归类到推荐域并刷新聚合视图 |
 | `teamai digest` | 生成团队 AI 使用周报（skill 排行、新增/更新 skill、session 摘要） |
 | `teamai hooks` | 管理 AI 工具 hooks（list / inject / remove） |
+| `teamai ci extract-mr --url <url> [--mode comment\|write\|both] [--individual-comments]` | CI 流水线集成：从 MR/PR 中提取知识，发布为评论，合并后写入团队知识仓库。使用 `--individual-comments` 时每条建议单独发布，支持 reaction/reject 交互（GitHub 👎 / TGit ☝️） |
 | `teamai uninstall [--force]` | 卸载 teamai：移除 hooks、rules、skills、env、docs、~/.teamai/ |
 | `teamai doctor` | 诊断配置问题 |
 
@@ -292,6 +305,42 @@ Author: alice | Score: 12.0 | Tags: fuse, deploy
 - 搜索自动投票，好文档自然浮到顶部
 - 投票按 scope 分别写入各自的 repo，归属正确
 
+`teamai recall` 的输出会给每条命中前置 `[<type>]` 标签，方便调用方快速判断知识来源。共享检索索引覆盖四类内容：
+
+| 类型 | 源路径 | 说明 |
+|------|--------|------|
+| `[learnings]` | `~/.teamai/learnings/*.md` | session 经验文档 |
+| `[docs]` | 团队仓库 `docs/**/*.md` | 共享项目知识 |
+| `[rules]` | 团队仓库 `rules/**/*.md` | 编码规则和约定 |
+| `[skills]` | 团队仓库 `skills/<name>/SKILL.md` | 可复用 AI skill |
+
+索引在每次 `teamai pull` 时自动重建。旧版索引（无 `version` 字段或缺少 `type`）会在首次使用时被自动检测并重建，对调用方透明
+
+### TodoWrite 提醒 hook
+
+`teamai pull` 会在 `TodoWrite` 工具上注册一个 PostToolUse hook。当 session 第一次写 TODO 列表时，hook 会注入一次性提醒，要求 agent 在尚未调用 `teamai-recall` 时先调用一次。session 级去重通过 `~/.teamai/sessions/<sid>-todowrite-hint.json` 实现（TTL 24 小时）
+
+如果要全局关闭该提醒，请设置：
+
+```bash
+export TEAMAI_RECALL_DISABLED=1
+```
+
+该环境变量同时也会关闭 auto-recall hook
+
+### `agents` 资源类型
+
+团队仓库可以在扁平的 `agents/` 目录下放置自定义 subagent 定义（每个 agent 一个 `*.md`），push / pull / remove 语义与 `rules` 保持一致：
+
+```text
+team-repo/
+  agents/
+    code-reviewer.md      # 团队作者编写的 subagent
+    .removed              # tombstone（由 `teamai remove agents <name>` 自动管理）
+```
+
+`teamai pull` 会把它们复制到每个 Tier-1 工具的 `agents/` 目录（例如 `~/.claude/agents/`）。CLI 内置的 `teamai-recall.md` 会与团队 agents 一起部署，并在 `teamai push` 时被自动排除（由 CLI 管理，不归团队仓库）
+
 ## 更新
 
 ```bash
@@ -316,6 +365,42 @@ npm update -g teamai-cli   # 或手动触发 npm 升级
 | 用户覆盖 | `~/.teamai/config.yaml` | `updatePolicy` | `auto` / `prompt` / `skip` |
 
 用户级 `updatePolicy` 始终优先于团队级 `autoUpdate`。
+
+## CI 集成
+
+TeamAI 可以集成到 CI 流水线中，从每次 MR/PR 自动提取知识：
+
+```
+MR 创建/更新 → CI 提取 learning + codebase 建议 → 以评论形式发布
+    → Reviewer 拒绝不需要的建议（GitHub 👎 / TGit ☝️）
+    → MR 合并 → CI 将已通过的条目写入团队知识仓库
+```
+
+### 快速开始
+
+```bash
+# Comment 模式：将建议发布到 MR（在 PR 打开/更新时运行）
+teamai ci extract-mr --url "$MR_URL" --mode comment --individual-comments
+
+# Write 模式：将已通过的条目写入知识仓库（在合并后运行）
+teamai ci extract-mr --url "$MR_URL" --mode write --team-repo ./team-repo --individual-comments
+```
+
+### CI 模板
+
+`examples/ci/` 目录下提供了开箱即用的模板：
+
+| 文件 | 平台 |
+|------|------|
+| `github-actions-mr-extract.yml` | GitHub Actions |
+| `coding-ci-mr-extract.yaml` | Coding CI（TGit + 智研 QCI） |
+
+### 拒绝交互
+
+| 平台 | 拒绝方式 | 默认行为 |
+|------|---------|---------|
+| GitHub | 对建议评论添加 👎 reaction | 全部写入 |
+| TGit | 对建议 note 添加 ☝️ emoji | 全部写入 |
 
 ## 许可证
 
