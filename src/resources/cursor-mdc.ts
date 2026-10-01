@@ -1,4 +1,4 @@
-import matter from 'gray-matter';
+import matter from '../utils/safe-matter.js';
 
 /**
  * Cursor project rules must live in `.cursor/rules/*.mdc` with YAML frontmatter

@@ -103,7 +103,8 @@ function runCommand(
 
         const timer = setTimeout(() => {
             child.kill();
-            reject(new Error(`Command timed out after ${opts.timeoutMs}ms: ${cmd} ${args.join(' ')}`));
+            // Args may carry an auth header or token-bearing URL; never echo them.
+            reject(new Error(`Command timed out after ${opts.timeoutMs}ms: ${cmd} ${redactToken(args.join(' '))}`));
         }, opts.timeoutMs);
 
         child.on('close', (code) => {
@@ -245,10 +246,16 @@ export async function shallowClone(
     if (extraAuthHeader) {
         cloneArgs.push('-c', `http.extraHeader=${extraAuthHeader}`);
     }
+    // `--` keeps a URL that starts with `-` from being parsed as a git option
+    // (e.g. `--upload-pack=<cmd>`), which would run an arbitrary command.
+    if (cloneUrl.startsWith('-')) {
+        throw new Error(`Invalid repository URL: ${redactToken(cloneUrl)}`);
+    }
     cloneArgs.push(
         'clone',
         `--depth=${depth}`,
         '--single-branch',
+        '--',
         cloneUrl,
         localPath,
     );

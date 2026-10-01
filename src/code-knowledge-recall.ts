@@ -8,7 +8,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
-import matter from 'gray-matter';
+import matter from './utils/safe-matter.js';
 
 import type { GraphIndex } from './wiki-engine/core/graph-index.schema.js';
 import { tokenize, tokenCount, MAX_TOKENIZE_CHARS } from './utils/tokenizer.js';

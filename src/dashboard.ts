@@ -150,9 +150,9 @@ export async function startDashboard(port?: number): Promise<void> {
   const handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {
     const url = new URL(req.url ?? '/', `http://localhost:${serverPort}`);
 
-    // CORS headers for local development
-    res.setHeader('Access-Control-Allow-Origin', '*');
-
+    // The dashboard is same-origin (served from this server); a wildcard CORS
+    // header would let any page open in the browser read /api/* (local paths,
+    // session data) while the dashboard is running.
     if (url.pathname === '/' || url.pathname === '/index.html') {
       // Serve dashboard HTML
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });

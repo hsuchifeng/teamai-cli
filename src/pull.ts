@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { readFile, stat } from 'node:fs/promises';
-import matter from 'gray-matter';
+import matter from './utils/safe-matter.js';
 import {
   buildRolePullContext, collectClaudemdFiles, describeDeliveryConflict, indexedRuleFiles,
   indexedSkills, resolveDesiredAgents, resolveDesiredRules, resolveDesiredSkills, type RolePullContext,
@@ -13,6 +13,7 @@ import { pendingLearningsDir } from './utils/pending-learnings.js';
 import { indexableLearningsRoots } from './utils/learnings-roots.js';
 import { log, spinner } from './utils/logger.js';
 import { pathExists, remove, listFiles, listDirs, listFilesRecursive, readFileSafe, dirContentEqual, hasVcsMetadataRecursive } from './utils/fs.js';
+import { assertWithinRoot } from './utils/path-safety.js';
 import { reconcilePlacementRecords } from './utils/pending-push.js';
 import { injectClaudeMdSection, removeClaudeMdSection } from './utils/claudemd.js';
 import { getHandler, RulesHandler, DocsHandler, EnvHandler, AgentsHandler } from './resources/index.js';
@@ -462,6 +463,14 @@ async function cleanupTombstonedResources(
       for (const name of tombstones) {
         for (const extension of tombstoneExtensions(type, tool)) {
           const localPath = path.join(baseDir, dir, `${name}${extension}`);
+          // A tombstone line is free text from the team repo; never let it
+          // delete anything outside the tool's own resource directory.
+          try {
+            assertWithinRoot(path.join(baseDir, dir), localPath);
+          } catch {
+            log.warn(`[${scopeLabel}] Ignored tombstoned ${type} "${name}": it points outside ${dir}`);
+            continue;
+          }
           if (!await pathExists(localPath)) continue;
           // Even an upstream (tombstone) removal must not blow away a local
           // repo's stash/unpushed history inside a skill directory. Keep

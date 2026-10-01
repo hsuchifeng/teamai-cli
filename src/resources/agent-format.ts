@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import matter from 'gray-matter';
+import matter, { type GrayMatterFile } from '../utils/safe-matter.js';
 import { stringify as stringifyToml, parse as parseToml } from 'smol-toml';
 import { getDispatchCommand } from '../builtin-hooks.js';
 
@@ -510,7 +510,7 @@ const COMMON_OPENCODE_FIELDS = new Set(['description', 'model']);
  * @param content  - File content string.
  */
 export function reverseFromClaude(filePath: string, content: string): ReverseResult {
-  let parsed: matter.GrayMatterFile<string>;
+  let parsed: GrayMatterFile<string>;
   try {
     parsed = matter(content);
   } catch (err) {
@@ -547,7 +547,7 @@ export function reverseFromClaude(filePath: string, content: string): ReverseRes
 
 /** Reverse a Copilot `.agent.md` profile into TeamAI's canonical agent spec. */
 export function reverseFromCopilot(filePath: string, content: string): ReverseResult {
-  let parsed: matter.GrayMatterFile<string>;
+  let parsed: GrayMatterFile<string>;
   try {
     parsed = matter(content);
   } catch (err) {
@@ -716,7 +716,7 @@ export function reverseFromCodex(filePath: string, content: string): ReverseResu
  * Uses agent_id instead of name in the frontmatter.
  */
 export function reverseFromCursor(filePath: string, content: string): ReverseResult {
-  let parsed: matter.GrayMatterFile<string>;
+  let parsed: GrayMatterFile<string>;
   try {
     parsed = matter(content);
   } catch (err) {
@@ -758,7 +758,7 @@ export function reverseFromCursor(filePath: string, content: string): ReverseRes
  * are collected into tool_extras.opencode.
  */
 export function reverseFromOpencode(filePath: string, content: string): ReverseResult {
-  let parsed: matter.GrayMatterFile<string>;
+  let parsed: GrayMatterFile<string>;
   try {
     parsed = matter(content);
   } catch (err) {

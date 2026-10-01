@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
 import { isToolInstalledForConfig, ResourceHandler } from './base.js';
@@ -156,6 +157,13 @@ function appendFrontmatterFields(raw: string, fields: Record<string, string>): s
  */
 export async function ensureSkillFrontmatter(skillDir: string, skillName: string): Promise<boolean> {
   const skillMdPath = path.join(skillDir, SKILL_MD);
+  // Skills are copied with symlinks preserved. Writing through a SKILL.md
+  // symlink would edit whatever file the team repo pointed it at.
+  const linkStat = await fs.promises.lstat(skillMdPath).catch(() => null);
+  if (linkStat?.isSymbolicLink()) {
+    log.warn(`Skipped frontmatter repair for ${skillName}/SKILL.md: it is a symlink`);
+    return false;
+  }
   const content = await readFileSafe(skillMdPath);
   if (!content) return false;
 

@@ -2,7 +2,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import matter from 'gray-matter';
+import matter from './utils/safe-matter.js';
 
 import { callClaude, getAICliName } from './utils/ai-client.js';
 import { createGit } from './utils/git.js';

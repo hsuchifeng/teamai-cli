@@ -1,4 +1,4 @@
-import matter from 'gray-matter';
+import matter from './safe-matter.js';
 import { log } from './logger.js';
 
 /** Result of splitting a document into its YAML frontmatter and body. */

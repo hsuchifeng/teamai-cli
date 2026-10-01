@@ -619,3 +619,64 @@ describe('pull role-aware sync and cleanup', () => {
     expect(await fse.pathExists(path.join(homeDir, '.claude/skills', 'hai-only'))).toBe(false);
   });
 });
+
+describe('tombstone path containment', () => {
+  let tmpDir: string;
+  let homeDir: string;
+  let repoPath: string;
+
+  beforeEach(async () => {
+    tmpDir = await fse.mkdtemp(path.join(os.tmpdir(), 'teamai-pull-tombstone-escape-'));
+    homeDir = path.join(tmpDir, 'home');
+    repoPath = path.join(tmpDir, 'team-repo');
+    await fse.ensureDir(path.join(repoPath, 'rules'));
+    await fse.ensureDir(path.join(repoPath, 'skills', 'common'));
+    await fse.ensureDir(path.join(repoPath, 'learnings', 'common'));
+    await fse.ensureDir(path.join(repoPath, 'manifest'));
+    await fse.writeFile(path.join(repoPath, 'manifest', 'roles.yaml'), 'version: 1\n');
+    await fse.ensureDir(path.join(homeDir, '.claude', 'rules'));
+    await fse.ensureDir(path.join(homeDir, '.claude', 'skills'));
+    vi.stubEnv('HOME', homeDir);
+
+    vi.mocked(loadTeamConfig).mockResolvedValue({
+      team: 'test',
+      description: '',
+      repo: 'https://git.woa.com/test/repo.git',
+      provider: 'tgit' as const,
+      reviewers: [],
+      sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+      toolPaths: { claude: { skills: '.claude/skills', rules: '.claude/rules' } },
+    });
+    vi.mocked(loadLocalConfigForScope).mockResolvedValue({
+      repo: { localPath: repoPath, remote: 'https://git.woa.com/test/repo.git' },
+      username: 'testuser',
+      updatePolicy: 'auto',
+      primaryRole: 'hai',
+      additionalRoles: [],
+      resourceProfileVersion: 1,
+      scope: 'user',
+    });
+    vi.mocked(detectProjectConfig).mockResolvedValue(null);
+    vi.mocked(loadStateForScope).mockImplementation(
+      async () => ({ lastPull: null }) as Awaited<ReturnType<typeof loadStateForScope>>,
+    );
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await fse.remove(tmpDir);
+  });
+
+  it('never deletes outside the tool resource directory, whatever the tombstone says', async () => {
+    await fse.ensureDir(path.join(homeDir, '.ssh'));
+    await fse.writeFile(path.join(homeDir, '.ssh', 'authorized_keys'), 'key');
+    await fse.writeFile(path.join(homeDir, 'notes.md'), 'mine');
+    await fse.writeFile(path.join(repoPath, 'skills', '.removed'), '../../.ssh\n');
+    await fse.writeFile(path.join(repoPath, 'rules', '.removed'), '../../notes\n');
+
+    await pull({});
+
+    expect(await fse.pathExists(path.join(homeDir, '.ssh', 'authorized_keys'))).toBe(true);
+    expect(await fse.pathExists(path.join(homeDir, 'notes.md'))).toBe(true);
+  });
+});

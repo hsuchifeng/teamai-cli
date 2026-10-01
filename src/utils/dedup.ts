@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import matter from 'gray-matter';
+import matter from './safe-matter.js';
 
 import { isSafeNamespaceSegment } from '../manifest-schema.js';
 import { listFilesRecursive, pathExists } from './fs.js';

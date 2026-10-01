@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import https from 'node:https';
 
 import { type MRData } from '../../types.js';
@@ -18,7 +18,9 @@ interface ParsedGitHubPR {
  * 解析失败时抛出 Error。
  */
 function parseGitHubPRUrl(url: string): ParsedGitHubPR {
-  const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+  // Anchor the pattern and restrict owner/repo to GitHub's identifier charset:
+  // the captured values are passed to `gh` and interpolated into API paths.
+  const match = url.match(/^https?:\/\/(?:www\.)?github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/pull\/(\d+)(?:[/?#]|$)/);
   if (!match) {
     throw new Error(`Invalid GitHub PR URL: ${url}`);
   }
@@ -157,14 +159,17 @@ export async function fetchGitHubPR(url: string): Promise<MRData> {
 
   // ── 优先尝试 gh CLI ──────────────────────────────────────
   try {
-    const viewOutput = execSync(
-      `gh pr view ${number} --repo ${repoArg} --json title,body,author,mergedAt,commits`,
+    // execFileSync: arguments go straight to `gh`, never through a shell.
+    const viewOutput = execFileSync(
+      'gh',
+      ['pr', 'view', number, '--repo', repoArg, '--json', 'title,body,author,mergedAt,commits'],
       { maxBuffer: 10 * 1024 * 1024, encoding: 'utf8' },
     );
     const prView = JSON.parse(viewOutput) as GhPRView;
 
-    const rawDiff = execSync(
-      `gh pr diff ${number} --repo ${repoArg}`,
+    const rawDiff = execFileSync(
+      'gh',
+      ['pr', 'diff', number, '--repo', repoArg],
       { maxBuffer: 50 * 1024 * 1024, encoding: 'utf8' },
     );
 
