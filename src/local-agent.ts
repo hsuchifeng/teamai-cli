@@ -2731,6 +2731,9 @@ async function runHookRuleCommand(
   if (!slug) {
     throw new Error(`${command.type}: missing slug`);
   }
+  // The slug names a directory under the tool's hooks dir (and is deleted
+  // recursively on uninstall), so it must be a single path segment.
+  validateSlug(slug);
   const manifest = await loadAgentHookManifest();
 
   if (command.type === 'uninstall_hook_rule') {

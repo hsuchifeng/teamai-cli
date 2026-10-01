@@ -1,7 +1,7 @@
 // -*- coding: utf-8 -*-
 import path from 'node:path';
 
-import matter from 'gray-matter';
+import matter from '../utils/safe-matter.js';
 
 import { ensureDir, readFileSafe, writeFile, listFiles } from '../utils/fs.js';
 import { isInWriteRoot, listLearningFiles } from '../utils/learnings-roots.js';

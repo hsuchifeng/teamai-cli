@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { readdir, rm } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
-import matter from 'gray-matter';
+import matter from './safe-matter.js';
 import { readFileSafe, readJson, writeJsonAtomic, listFiles, listFilesRecursive, listDirs, pathExists } from './fs.js';
 import { tokenize, wordSegments, MAX_TOKENIZE_CHARS } from './tokenizer.js';
 import { log } from './logger.js';

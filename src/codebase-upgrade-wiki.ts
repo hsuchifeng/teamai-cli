@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import chalk from 'chalk';
-import matter from 'gray-matter';
+import matter from './utils/safe-matter.js';
 
 import { extractCodebase } from './codebase-extract.js';
 import { log } from './utils/logger.js';

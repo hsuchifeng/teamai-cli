@@ -586,6 +586,15 @@ export function deriveSourceName(repoUrl: string): string | null {
  */
 async function findSkillInRepo(skillsDir: string, skillName: string): Promise<string | null> {
   if (!await pathExists(skillsDir)) return null;
+  // `publicSkills` comes from another team's teamai.yaml: a name such as
+  // `../../.ssh` would otherwise resolve both the lookup and the local
+  // destination outside their intended directories.
+  try {
+    assertSafeResourceName(skillName);
+  } catch (err) {
+    log.warn(`Skipped public skill "${skillName}": ${(err as Error).message}`);
+    return null;
+  }
 
   // Check flat layout first: skills/<name>/SKILL.md
   const flatPath = path.join(skillsDir, skillName);
