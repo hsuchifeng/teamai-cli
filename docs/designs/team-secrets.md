@@ -92,7 +92,7 @@ teamai env unset GITHUB_TOKEN [--global]
 ```
 
 - The value is never taken from an argument, so it stays out of shell history. `--stdin` refuses a terminal.
-- `env set` accepts a key the scope declares as a secret or, without `--global`, an `env.yaml` variable it receives; `--global` is for secrets only. On Windows the key may be typed in any case: `env set` and `env unset` use the name the scope declares, `env add --secret` and `env remove --secret` the name already declared, and a value stored under another case of the name is the key's. When the declarations or `env.yaml` cannot be read it changes nothing, since it cannot tell. A project config that exists but can't be read makes `env set`, `env unset` and `env list` fail with its path and why, rather than use the user scope, whose team may not be this project's.
+- `env set` accepts a key the scope declares as a secret, a `${VAR}` its MCP servers reference that nothing declares or sets (an [implicit secret](#a-variable-only-mcpyaml-names-is-a-secret)), or, without `--global`, an `env.yaml` variable it receives; `--global` is for secrets only. On Windows the key may be typed in any case: `env set` and `env unset` use the name the scope declares, `env add --secret` and `env remove --secret` the name already declared, and a value stored under another case of the name is the key's. When the declarations or `env.yaml` cannot be read it changes nothing, since it cannot tell. A project config that exists but can't be read makes `env set`, `env unset` and `env list` fail with its path and why, rather than use the user scope, whose team may not be this project's.
 - Outside any scope (no project here and no user scope), `env set --global` accepts any valid key name and notes that no team declares it yet, so a member can set a token they reuse across teams ahead of time. `env unset` accepts any key that has a value.
 - `--from-env` warns when the variable is not set in the current shell. While it is unset, the secret is `missing`: the next source in the [order](#resolution) is not used instead, since that could be another account's token.
 - Run `teamai pull` afterwards to update the MCP servers, and `env.sh` for a variable.
@@ -146,6 +146,10 @@ the member's value for this team   teamai env set KEY [--from-env VAR]
 
 **Out of git.** A resolved value lands in a project-scope MCP config only once the clone's `.git/info/exclude` lists the file (#882). An exclude rule does not stop a file git already tracks, so no resolved value, declared secret or not, is written into a project config `git ls-files` tracks: pull leaves that file as it was (an entry an earlier pull wrote stays), and `pull` (a warning), `teamai mcp list` (`withheld:`) and `teamai doctor` (`MCP servers delivered to <tool>` fails) name the file and the fix: `git rm --cached <file>`, and rotate the token if it was ever committed. An exclusion that fails for another reason (`.git/info` or the exclude file not writable, another teamai command holding it, a git error) leaves the file as it was the same way, with that reason and its fix.
 
+## A variable only mcp.yaml names is a secret
+
+A `${VAR}` in `mcp/mcp.yaml` (or an active `mcp/<ns>/mcp.yaml`) that no secrets file declares and no `env.yaml` sets is a member's own token: the team repo cannot hold its value, and a team that has no `env/` at all still references it (#1011). Every consumer treats it as a declared secret, under the file that references it: `teamai env set VAR` stores the member's value; a pull resolves it in the secret [order](#resolution), the member's own environment last; a server whose value a pull cannot see keeps the entry an earlier pull wrote (below), so the session-start pull, which runs without the member's shell exports, no longer removes it; and the [missing line](#a-missing-secret-tells-the-member-what-to-run) names it with the servers that use it. `env list` shows it under `Team secrets` as `used by MCP server <name>`. Declaring it in `env/secrets.yaml` adds a description and a `url`; it changes nothing else. While the secrets files, `env.yaml` or `mcp.yaml` cannot be read, nothing is implied: the command reports that failure.
+
 ## A missing secret keeps the MCP entry
 
 `${VAR}` in `mcp/mcp.yaml` can name a declared secret. The session-start pull runs in the agent's environment, which often lacks the member's shell exports (a GUI-launched tool, or a zsh export under `bash -lc`), so a secret can be there for one pull and gone for the next. When a pull finds no value for a server's declared secret:
@@ -153,7 +157,7 @@ the member's value for this team   teamai env set KEY [--from-env VAR]
 - A server an earlier pull wrote keeps its entry in each tool's config, as it is, and teamai still manages it: a later pull that finds a value updates it.
 - A server no pull has written yet is skipped, as before.
 - The entry is removed when its server leaves `mcp.yaml`, and by `teamai mcp remove`, `teamai uninstall`, and `teamai init` when it moves the Claude Code root.
-- A server that also misses a variable not declared as a secret is removed, as before. Variables that aren't declared as secrets keep today's behaviour.
+- A server that also misses a variable only `mcp.yaml` names is kept the same way: that variable is an [implicit secret](#a-variable-only-mcpyaml-names-is-a-secret). An `env.yaml` variable always has the team's value, so it is never the one missing.
 
 A kept entry holds the value the earlier pull wrote. After a secret is rotated or revoked, the server keeps the old value until a pull finds the new one.
 
