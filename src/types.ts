@@ -330,6 +330,14 @@ export const TeamaiConfigSchema = z.object({
     postPull: z.object({
       path: z.string().min(1),
     }).optional(),
+    /** Run once by `teamai init`, with the terminal attached, after the local
+     * config and hooks are in place and before the closing pull, so it can
+     * ask the member for what the team's MCP servers need (`teamai env set`).
+     * Skipped without a terminal; `teamai script run postInit` runs it again.
+     * Same path rules as `postPull`. */
+    postInit: z.object({
+      path: z.string().min(1),
+    }).optional(),
   }).optional(),
   // MCP paths are only set for tools whose config location has been verified.
   // Tools left without `mcp` are skipped by MCP sync rather than guessed at, so a

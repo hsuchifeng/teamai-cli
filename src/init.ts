@@ -1432,6 +1432,14 @@ export async function initSelfRepo(options: GlobalOptions & {
     // state may not exist yet
   }
 
+  // Step 6.6: the team's setup script (teamai.yaml `scripts.postInit`), then
+  // one MCP sync so what it collected reaches the tools (#1012).
+  const { runDeclaredPostInit } = await import('./post-init.js');
+  if ((await runDeclaredPostInit(localConfig)).kind === 'ran') {
+    const { mcpInject } = await import('./mcp-cmd.js');
+    await mcpInject({ verbose: options.verbose });
+  }
+
   log.success('teamai initialized (single-repo mode)!');
   log.info('Next steps:');
   log.info('  1. Add team resources by dropping them into .teamai/ (or author them in your AI tool as usual):');
@@ -2153,6 +2161,12 @@ export async function init(options: GlobalOptions & {
       log.warn(`The built-in teamai skill was not deployed: ${(e as Error).message}`);
     }
   }
+
+  // Step 7.6: the team's setup script (teamai.yaml `scripts.postInit`), with
+  // the terminal attached, so what it collects (`teamai env set`) is there for
+  // the pull below. Skipped without a terminal, with the command to run later.
+  const { runDeclaredPostInit } = await import('./post-init.js');
+  await runDeclaredPostInit(localConfig);
 
   // Step 8: deliver the team's resources now. Rules and MCP are read once at
   // session start, before the SessionStart hook syncs, so without this the

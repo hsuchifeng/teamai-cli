@@ -211,6 +211,11 @@ Generated: do not edit by hand. Regenerate with
     - `--global` — Remove the value set for every team on this machine instead
   - `teamai env exec <command...>` — Run a command with this directory's team env variables and secrets (put -- before the command)
 
+## script
+
+- `teamai script` — Run a script the team declares in teamai.yaml
+  - `teamai script run <name>` — Run a team script again: postInit (the setup script `teamai init` runs with the terminal attached), then sync MCP servers
+
 ## hooks
 
 - `teamai hooks` — Manage teamai hooks in AI tool settings

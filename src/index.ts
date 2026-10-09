@@ -736,6 +736,19 @@ envCmd
     exitLike(await envExec(argv.slice(argv.indexOf('exec', argv.indexOf('env')) + 1), globalOpts));
   });
 
+// ─── Team scripts ───────────────────────────────────────
+
+program
+  .command('script')
+  .description('Run a script the team declares in teamai.yaml')
+  .command('run <name>')
+  .description('Run a team script again: postInit (the setup script `teamai init` runs with the terminal attached), then sync MCP servers')
+  .action(async (name: string) => {
+    const globalOpts = program.opts() as GlobalOptions;
+    const { scriptRun } = await import('./script-cmd.js');
+    await scriptRun(name, globalOpts);
+  });
+
 // ─── Hooks commands ─────────────────────────────────────
 
 const hooksCmd = program
