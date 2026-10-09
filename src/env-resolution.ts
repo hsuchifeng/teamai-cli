@@ -12,7 +12,9 @@ import { memberEnvironment, type MemberEnvironment } from './member-env.js';
 import { resolveEntries, resolveEntriesFor, type EntryResolution, type ResolvedEntry } from './namespaced-entries.js';
 import { envEntryReader, type EnvVariable } from './resources/env.js';
 import { sameEnvName } from './resources/env-key.js';
-import { declaredSecretKeys, resolveSecretDeclarations, type KnownNamespaces, type SecretDeclarations } from './resources/secrets.js';
+import {
+  declaredSecretKeys, resolveSecretDeclarations, withMcpReferencedSecrets, type KnownNamespaces, type SecretDeclarations,
+} from './resources/secrets.js';
 import {
   getMachineSecretsPath, getTeamSecretsPath, readSecretStore, storedEntryKind, storedSecretValue, type SecretStore,
   type SecretStoreRead, type StoredEntryKind, type StoredSecret,
@@ -98,7 +100,11 @@ export async function resolveTeamEnv(
   const variables = namespaces
     ? await resolveEntries(envEntryReader, localConfig, namespaces.active)
     : await resolveEntriesFor(envEntryReader, localConfig);
-  const declarations = await resolveSecretDeclarations(localConfig, namespaces);
+  // A `${VAR}` an MCP server references that nothing declares or sets is a
+  // member's own token, resolved as a secret (#1011).
+  const declarations = await withMcpReferencedSecrets(
+    localConfig, await resolveSecretDeclarations(localConfig, namespaces), variables,
+  );
   const secretKeys = declaredSecretKeys(declarations) ?? new Set<string>();
   const received = variables.kind === 'resolved' ? variables.entries : [];
   const plain = received.filter((variable) => !secretKeys.has(variable.name));

@@ -3962,7 +3962,9 @@ servers:
       expect(vi.mocked(log.warn).mock.calls.map(([m]) => String(m)).join('\n')).toContain('env/secrets.yaml');
     });
 
-    it('still removes a server whose missing variable is not declared as a secret', async () => {
+    // A variable only mcp.yaml names is the member's own token (#1011): resolved
+    // as a secret, so the entry an earlier pull wrote stays while its value is gone.
+    it('keeps a server whose missing variable is referenced by mcp.yaml alone (#1011)', async () => {
       await writeMcpYaml(`
 servers:
   - name: plain
@@ -3978,11 +3980,11 @@ servers:
       vi.stubEnv('PLAIN_KEY', undefined);
       await reconcileMcpForConfig(teamConfig, localConfig);
 
-      expect((await fse.readJson(claudeJson())).mcpServers.plain).toBeUndefined();
-      expect(await fse.readFile(codexToml(), 'utf-8')).not.toContain('[mcp_servers.plain]');
+      expect((await fse.readJson(claudeJson())).mcpServers.plain.headers['X-Key']).toBe('k');
+      expect(await fse.readFile(codexToml(), 'utf-8')).toContain('[mcp_servers.plain]');
     });
 
-    it('still removes a server that also misses a variable not declared as a secret', async () => {
+    it('keeps a server that also misses a variable referenced by mcp.yaml alone (#1011)', async () => {
       await writeMcpYaml(`
 servers:
   - name: both
@@ -4001,7 +4003,7 @@ servers:
       vi.stubEnv('PLAIN_KEY', undefined);
       await reconcileMcpForConfig(teamConfig, localConfig);
 
-      expect((await fse.readJson(claudeJson())).mcpServers.both).toBeUndefined();
+      expect((await fse.readJson(claudeJson())).mcpServers.both.headers['X-Key']).toBe('k');
     });
 
     it('removeAll removes a kept server, while the declarations cannot be read too', async () => {

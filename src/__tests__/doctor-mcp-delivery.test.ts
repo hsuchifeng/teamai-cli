@@ -136,18 +136,21 @@ describe('doctor — MCP servers delivered on disk', () => {
     expect(check.fix).toContain(path.join(homeDir, '.claude.json'));
   });
 
-  it('names the variable a server was skipped for, and points at env.yaml', async () => {
+  // A variable only mcp.yaml names is the member's own secret (#1011): the
+  // server waits for `teamai env set`, as one for a declared secret does, so
+  // it is doctor's note with that command, not a failed delivery.
+  it('notes the variable a server waits for, with the command that sets it, instead of failing (#1011)', async () => {
     await writeTeamMcp(
       'servers:\n  - name: jira\n    transport: stdio\n    command: jira-server\n'
       + '    env:\n      TOKEN: "${JIRA_PASSWORD}"\n',
     );
     await writeClaudeConfig({});
 
-    const check = await mcpCheck();
-    expect(await check.check()).toBe(false);
-    expect(check.fix).toContain('jira');
-    expect(check.fix).toContain('JIRA_PASSWORD');
-    expect(check.fix).toContain('variables:');
+    const names = (await checks()).map((c) => c.name);
+    expect(names).not.toContain('MCP servers delivered to claude');
+    const { envAdvisories, describeEnvAdvisory } = await import('../env-advisories.js');
+    const notes = (await envAdvisories(localConfig, teamConfig)).map(describeEnvAdvisory);
+    expect(notes).toEqual(['jira: JIRA_PASSWORD is not set. Run `teamai env set JIRA_PASSWORD`.']);
   });
 
   it('stays silent about a server the member excluded on purpose', async () => {

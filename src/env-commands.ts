@@ -2,7 +2,7 @@ import { requireInit, detectProjectConfig, describeUnreadableConfig, NotInitiali
 import { pullRepo } from './utils/git.js';
 import { pathExists } from './utils/fs.js';
 import { log, spinner } from './utils/logger.js';
-import { EnvHandler, envEntryReader, unknownEnvVariableKeys, type EnvYaml } from './resources/env.js';
+import { EnvHandler, unknownEnvVariableKeys, type EnvYaml } from './resources/env.js';
 import { ENV_KEY_RE, envName, envValue, sameEnvName } from './resources/env-key.js';
 import {
   SECRETS_LAYOUT, declaredSecretKeys, readSecretsForEdit, resolveSecretDeclarations, unknownSecretDeclarationKeys,
@@ -14,7 +14,7 @@ import { reportMissingSecrets } from './env-advisories.js';
 import { envListing } from './env-listing.js';
 import { resolveTeamEnv } from './env-resolution.js';
 import {
-  describeEntryFailure, entryFileAbsolutePath, entryFilePath, entryLayout, entryNamespaceFromFlags, moveTo, reportUndeliveredEntryNotices, resolveEntriesFor, TargetFiles,
+  describeEntryFailure, entryFileAbsolutePath, entryFilePath, entryLayout, entryNamespaceFromFlags, moveTo, reportUndeliveredEntryNotices, TargetFiles,
   type EntryLayout, type EntryType,
 } from './namespaced-entries.js';
 import type { GlobalOptions, LocalConfig } from './types.js';
@@ -77,7 +77,9 @@ export async function envSet(
   const localConfig = scope.kind === 'scope' ? scope.localConfig : null;
   let isVariable = false;
   if (localConfig) {
-    const declarations = await resolveSecretDeclarations(localConfig);
+    // The declarations with the `${VAR}` names its MCP servers reference (#1011).
+    const teamEnv = await resolveTeamEnv(localConfig);
+    const { declarations } = teamEnv;
     if (declarations.kind === 'failed') {
       log.error(describeEntryFailure(declarations.failure));
       return fail(`Cannot tell whether ${key} is a secret this team declares. Nothing was changed.`);
@@ -93,7 +95,7 @@ export async function envSet(
         );
       }
       // #875: without --global, a member may also override a variable the scope receives, for this team.
-      const env = await resolveEntriesFor(envEntryReader, localConfig);
+      const env = teamEnv.variables;
       if (env.kind === 'failed') {
         log.error(describeEntryFailure(env.failure));
         return fail(`Cannot tell whether ${key} is an env variable this team sets. Nothing was changed.`);

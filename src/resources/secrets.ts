@@ -14,11 +14,14 @@ import YAML from 'yaml';
 import { z } from 'zod';
 import {
   entryLayout, missingTopLevelKeyReason, readEntryFileText, resolveEntries, resolveEntriesFor, unknownEntryKeys,
-  writtenList, type EntryLayout, type EntryReader, type EntryResolution,
+  writtenList, type EntryLayout, type EntryReader, type EntryResolution, type ResolvedEntry,
 } from '../namespaced-entries.js';
 import type { LocalConfig } from '../types.js';
 import { ensureDir, readFileSafe, writeFile } from '../utils/fs.js';
 import { ENV_KEY_RE, envName } from './env-key.js';
+import type { EnvVariable } from './env.js';
+import { referencedVars } from './mcp-format.js';
+import { mcpEntryReader, teamMcpToDef } from './mcp.js';
 
 const SecretDeclarationSchema = z.object({
   key: z.string().regex(ENV_KEY_RE, 'must be a shell variable name: letters, digits and underscores, not starting with a digit'),
@@ -143,6 +146,49 @@ export async function resolveSecretDeclarations(
     ? await resolveEntries(reader, localConfig, namespaces.active)
     : await resolveEntriesFor(reader, localConfig);
   return resolution.kind === 'resolved' && !found ? { kind: 'absent' } : resolution;
+}
+
+/**
+ * `declarations` plus the `${VAR}` names this scope's MCP servers reference
+ * that no secrets file declares and env.yaml does not set (#1011): a member's
+ * own token, which the team repo cannot hold a value for. Each one is a
+ * secret for every consumer, so `teamai env set KEY` stores it, a pull
+ * resolves it from the member's stores and environment, a server whose value
+ * a pull cannot see keeps the entry an earlier pull wrote, and the missing
+ * line names it. A declaration nothing can read stays as it is: failed
+ * declarations or variables say nothing about which keys are secrets, and
+ * MCP servers that cannot be read reference nothing.
+ */
+export async function withMcpReferencedSecrets(
+  localConfig: LocalConfig,
+  declarations: SecretDeclarations,
+  variables: EntryResolution<EnvVariable>,
+): Promise<SecretDeclarations> {
+  if (declarations.kind === 'failed' || variables.kind === 'failed' || localConfig.repo.kind === 'http') return declarations;
+  const mcp = await resolveEntriesFor(mcpEntryReader, localConfig);
+  if (mcp.kind === 'failed') return declarations;
+  const declared = declaredSecretKeys(declarations);
+  const set = new Set(variables.entries.map((variable) => envName(variable.name)));
+  const implicit = new Map<string, ResolvedEntry<SecretDeclaration>>();
+  for (const server of mcp.entries) {
+    const def = teamMcpToDef(server.entry);
+    for (const key of referencedVars(def)) {
+      if (declared.has(key) || set.has(envName(key)) || implicit.has(envName(key))) continue;
+      implicit.set(envName(key), {
+        entry: { key, description: `used by MCP server ${def.name}` },
+        name: key,
+        namespace: server.namespace,
+        source: server.source,
+        replaces: null,
+        replacedEntry: null,
+      });
+    }
+  }
+  if (implicit.size === 0) return declarations;
+  const base = declarations.kind === 'resolved'
+    ? declarations
+    : { kind: 'resolved' as const, entries: [], active: variables.active, notices: [], repeated: [] };
+  return { ...base, entries: [...base.entries, ...implicit.values()] };
 }
 
 /**

@@ -705,7 +705,7 @@ envCmd
 
 envCmd
   .command('set <key>')
-  .description("Set your value for a secret the team declares, or an env variable it sets, for this directory's team, on this machine (prompts without echo)")
+  .description("Set your value for a secret the team declares, a ${VAR} its MCP servers reference, or an env variable it sets, for this directory's team, on this machine (prompts without echo)")
   .option('--stdin', 'Read the value from piped stdin')
   .option('--from-env <var>', 'Read the value from this environment variable each time it is used; no copy is stored')
   .option('--global', 'Set a secret for every team on this machine; a value set for a team still wins')

@@ -146,6 +146,10 @@ teamai env unset GITHUB_TOKEN [--global]
 
 **不进入 git。** 只有在本地克隆的 `.git/info/exclude` 列出某个项目级 MCP 配置之后，解析后的值才会写入该文件（#882）。exclude 规则挡不住 git 已跟踪的文件，因此无论是否为已声明密钥，解析后的值都不会写入 `git ls-files` 已跟踪的项目配置：pull 保持该文件原样（之前 pull 写入的条目保留），`pull`（警告）、`teamai mcp list`（`withheld:`）和 `teamai doctor`（`MCP servers delivered to <tool>` 失败）会指出该文件和修复方法：`git rm --cached <file>`，如果它曾随 token 一起提交过，还要轮换 token。因其他原因无法排除时（`.git/info` 或 exclude 文件不可写、另一个 teamai 命令占用它、git 出错），同样保持该文件原样，并给出对应的原因与修复方法。
 
+## 只在 mcp.yaml 中出现的变量就是密钥
+
+`mcp/mcp.yaml`（或生效的 `mcp/<ns>/mcp.yaml`）里的 `${VAR}`，若没有任何 secrets 文件声明、也没有任何 `env.yaml` 设置，就是成员自己的 token：团队仓库放不下它的值，而一个根本没有 `env/` 的团队也会引用它（#1011）。所有使用方都把它当作已声明的密钥，归属于引用它的那个文件：`teamai env set VAR` 保存成员的值；pull 按密钥的[解析顺序](#解析顺序)解析它，成员自己的环境排在最后；某次 pull 看不到值时，保留上一次 pull 写入的条目（见下节），因此在没有成员 shell 导出的 session-start pull 中不再删除它；[缺少密钥的提示](#缺少密钥时告诉成员该运行什么)会连同使用它的 server 一起列出它。`env list` 在 `Team secrets` 下把它显示为 `used by MCP server <name>`。在 `env/secrets.yaml` 中声明它只是补充 description 和 `url`，其他都不变。secrets 文件、`env.yaml` 或 `mcp.yaml` 无法读取时不做任何推断：命令会报告那个失败。
+
 ## 缺少密钥时保留 MCP 条目
 
 `mcp/mcp.yaml` 中的 `${VAR}` 可以引用已声明的密钥。会话开始时的 pull 运行在 agent 的环境里，而这个环境常常没有成员 shell 中导出的变量（从图形界面启动的工具，或在 `bash -lc` 下读不到的 zsh export），所以一个密钥可能这次 pull 能找到、下次就找不到。pull 找不到某个 server 所需的已声明密钥时：
@@ -153,7 +157,7 @@ teamai env unset GITHUB_TOKEN [--global]
 - 之前某次 pull 写入过的 server 会在每个工具的配置中原样保留，并仍由 teamai 管理：之后某次 pull 找到值时会更新它。
 - 还没有任何 pull 写入过的 server 照旧跳过。
 - 该 server 从 `mcp.yaml` 中移除时，条目随之删除；`teamai mcp remove`、`teamai uninstall`，以及 `teamai init` 迁移 Claude Code 根目录时，也会删除它。
-- 同时缺少某个未声明为密钥的变量的 server 照旧删除。未声明为密钥的变量保持现有行为。
+- 同时缺少某个只在 `mcp.yaml` 中出现的变量的 server 同样保留：该变量是[隐式密钥](#只在-mcpyaml-中出现的变量就是密钥)。`env.yaml` 变量总有团队的值，不会是缺少的那个。
 
 保留下来的条目里是之前那次 pull 写入的值。密钥轮换或吊销后，server 会一直使用旧值，直到某次 pull 找到新值。
 
