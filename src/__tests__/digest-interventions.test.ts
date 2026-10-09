@@ -30,14 +30,13 @@ describe('summarizeInterventions', () => {
     expect(s.avgPerSession).toBeCloseTo(14 / 15);
   });
 
-  it('ranks users by intervention rate descending', () => {
+  it('carries no per-user ranking (team-wide totals only)', () => {
     const stats = [
-      user('alice', { sessions: 10, interrupt: 2, toolReject: 1, correction: 1 }), // rate 0.4
-      user('bob', { sessions: 5, interrupt: 5, toolReject: 0, correction: 5 }),     // rate 2.0
+      user('alice', { sessions: 10, interrupt: 2, toolReject: 1, correction: 1 }),
+      user('bob', { sessions: 5, interrupt: 5, toolReject: 0, correction: 5 }),
     ];
     const s = summarizeInterventions(stats)!;
-    expect(s.ranked[0].username).toBe('bob');
-    expect(s.ranked[0].rate).toBeCloseTo(2.0);
-    expect(s.ranked[1].username).toBe('alice');
+    expect(JSON.stringify(s)).not.toContain('alice');
+    expect(JSON.stringify(s)).not.toContain('bob');
   });
 });

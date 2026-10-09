@@ -142,7 +142,7 @@ describe('conversation + token metric — end to end', () => {
     const summary = summarizeConversation([userStats])!;
     expect(summary.totalPrompts).toBe(2);
     expect(summary.totalTokens).toBe(120 + 130 + 2500 + 200);
-    expect(summary.ranked[0].username).toBe('jeff');
+    expect(JSON.stringify(summary)).not.toContain('jeff'); // team totals only, no per-user ranking
 
     // Idempotent: re-reporting the same events yields no new delta.
     const second = computePromptTokenDelta(metrics, nextReported);

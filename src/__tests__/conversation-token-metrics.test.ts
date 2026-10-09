@@ -611,6 +611,6 @@ describe('summarizeConversation', () => {
     expect(s.totalPrompts).toBe(14);
     expect(s.tokens).toEqual({ input: 6000, output: 600, cacheRead: 0, cacheCreation: 0 });
     expect(s.totalTokens).toBe(6600);
-    expect(s.ranked[0].username).toBe('bob'); // higher token usage first
+    expect(JSON.stringify(s)).not.toContain('bob'); // team totals only, no per-user ranking
   });
 });

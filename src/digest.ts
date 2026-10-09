@@ -274,13 +274,12 @@ export interface InterventionSummary {
   correction: number;
   /** Team-wide mean interventions per session. */
   avgPerSession: number;
-  /** Per-user ranking by intervention rate (highest first = least autonomous). */
-  ranked: Array<{ username: string; sessions: number; total: number; rate: number }>;
 }
 
 /**
  * Summarize the Human Intervention metric across all reported team stats.
- * Returns null when no user has reported any interventions yet.
+ * Returns null when no user has reported any interventions yet. Team-wide
+ * totals only: the digest never ranks or names individual members.
  */
 export function summarizeInterventions(teamStats: UserStats[]): InterventionSummary | null {
   const users = teamStats.filter((u) => u.interventions && u.interventions.sessions > 0);
@@ -291,20 +290,13 @@ export function summarizeInterventions(teamStats: UserStats[]): InterventionSumm
   let toolReject = 0;
   let correction = 0;
 
-  const ranked = users.map((u) => {
+  for (const u of users) {
     const iv = u.interventions!;
-    const total = iv.interrupt + iv.toolReject + iv.correction;
     totalSessions += iv.sessions;
     interrupt += iv.interrupt;
     toolReject += iv.toolReject;
     correction += iv.correction;
-    return {
-      username: u.username,
-      sessions: iv.sessions,
-      total,
-      rate: iv.sessions > 0 ? total / iv.sessions : 0,
-    };
-  }).sort((a, b) => b.rate - a.rate);
+  }
 
   const totalInterventions = interrupt + toolReject + correction;
   return {
@@ -314,7 +306,6 @@ export function summarizeInterventions(teamStats: UserStats[]): InterventionSumm
     toolReject,
     correction,
     avgPerSession: totalSessions > 0 ? totalInterventions / totalSessions : 0,
-    ranked,
   };
 }
 
@@ -326,8 +317,6 @@ export interface ConversationSummary {
   tokens: TokenUsage;
   /** Grand total of all token buckets. */
   totalTokens: number;
-  /** Per-user ranking by token usage (highest first). */
-  ranked: Array<{ username: string; prompts: number; tokens: number }>;
 }
 
 /** Compact a token count into a human-friendly string (e.g. 12.3M, 4.5K). */
@@ -340,6 +329,7 @@ export function formatTokenCount(n: number): string {
 /**
  * Summarize the conversation-turn count and token usage across all reported team
  * stats. Returns null when no user has reported any prompts or tokens yet.
+ * Team-wide totals only: the digest never ranks or names individual members.
  */
 export function summarizeConversation(teamStats: UserStats[]): ConversationSummary | null {
   const users = teamStats.filter(
@@ -350,18 +340,16 @@ export function summarizeConversation(teamStats: UserStats[]): ConversationSumma
   let totalPrompts = 0;
   const tokens: TokenUsage = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
 
-  const ranked = users.map((u) => {
-    const p = u.prompts ?? 0;
+  for (const u of users) {
     const t = u.tokens ?? { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
-    totalPrompts += p;
+    totalPrompts += u.prompts ?? 0;
     tokens.input += t.input;
     tokens.output += t.output;
     tokens.cacheRead += t.cacheRead;
     tokens.cacheCreation += t.cacheCreation;
-    return { username: u.username, prompts: p, tokens: totalTokens(t) };
-  }).sort((a, b) => b.tokens - a.tokens);
+  }
 
-  return { totalPrompts, tokens, totalTokens: totalTokens(tokens), ranked };
+  return { totalPrompts, tokens, totalTokens: totalTokens(tokens) };
 }
 
 export function summarizeTeamTrends(teamStats: UserStats[], now = new Date()): ReturnType<typeof summarizeTrendWindow> | null {

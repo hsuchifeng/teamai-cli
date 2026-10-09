@@ -139,7 +139,7 @@ describe('Human Intervention metric — end to end', () => {
     expect(summary.totalSessions).toBe(1);
     expect(summary.totalInterventions).toBe(3);
     expect(summary.avgPerSession).toBeCloseTo(3);
-    expect(summary.ranked[0].username).toBe('jeff');
+    expect(JSON.stringify(summary)).not.toContain('jeff'); // team totals only, no per-user ranking
   });
 
   it('re-running the report on the same events yields no new delta (idempotent)', async () => {

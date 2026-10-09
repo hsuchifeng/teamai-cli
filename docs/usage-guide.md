@@ -2031,7 +2031,7 @@ The prompt is checked when the `UserPromptSubmit` hook captures it, so a change 
 
 Matching normalizes both the prompt and keywords to Unicode NFC. For example, `réessaye` matches `re\u0301essaye`, where `\u0301` is a combining acute accent. Accents remain significant, so `reessaye` does not match. Normalization applies only to matching and does not change the 60-second correction window. Correction detection uses the original prompt in memory; the original is then discarded, while the locally stored summary is secret-redacted and capped at 200 characters.
 
-Intervention data is automatically aggregated and reported to the team's `stats/<user>.yaml` during `teamai pull`, and shown in the "Session Autonomy" leaderboard of `teamai digest`, with team averages and per-person intervention rate rankings — useful for verifying whether a skill/rule reduces intervention rates after rollout. Tools without a transcript (e.g. Cursor) degrade gracefully, tracking only `correction`.
+Intervention data is automatically aggregated and reported to the team's `stats/<user>.yaml` during `teamai pull`, and shown in the "Session Autonomy" section of `teamai digest`, with the team average and a breakdown by intervention type (team-wide totals only, no per-person ranking) — useful for verifying whether a skill/rule reduces intervention rates after rollout. Tools without a transcript (e.g. Cursor) degrade gracefully, tracking only `correction`.
 
 #### Conversation Volume & Token Usage
 
@@ -2044,7 +2044,7 @@ Each session row also shows two columns; Details retains secret-redacted capture
 
 > Privacy: shared turn/token metrics contain counts only. Redacted prompt summaries and output in dashboard details remain on this machine.
 
-These two metrics are likewise aggregated into `stats/<user>.yaml` (as `prompts` and `tokens` fields) during `teamai pull`, and shown in the "Conversation Volume & Token Usage" section of `teamai digest`, with team-wide totals, bucketed token totals, and per-person token usage rankings. Tools without transcript access (e.g. Cursor) degrade gracefully: turn counts are still tracked, while tokens show as 0 / N/A.
+These two metrics are likewise aggregated into `stats/<user>.yaml` (as `prompts` and `tokens` fields) during `teamai pull`, and shown in the "Conversation Volume & Token Usage" section of `teamai digest`, with team-wide prompt and bucketed token totals (team-wide totals only, no per-person ranking). Tools without transcript access (e.g. Cursor) degrade gracefully: turn counts are still tracked, while tokens show as 0 / N/A.
 
 #### Daily Session Trends & Estimated Cost
 
