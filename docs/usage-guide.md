@@ -2608,6 +2608,36 @@ running rather than killed, and the next pull reconciles. An interactive
 path, a missing file or a failed spawn is a line in `~/.teamai/debug.log`
 (`postPull: launched / exited / timed out`), never a failed pull.
 
+### Post-init script
+
+`postPull` runs headless, so it cannot ask the member anything. A team whose
+MCP servers need a personal token (`${TAPD_ACCESS_TOKEN}` in `mcp.yaml`)
+declares `scripts.postInit` instead: a Node entrypoint `teamai init` runs
+once, with the terminal attached and no time limit, after the local config
+and hooks are in place and before the closing pull, so what it collects
+(say, through `teamai env set`) is delivered by that same pull:
+
+```yaml
+scripts:
+  postInit:
+    path: scripts/setup-env.mjs
+```
+
+The script gets `TEAMAI_REPO` (the team repo clone it runs in) and
+`TEAMAI_SCOPE` (`user` or `project`). The same path rules as `postPull`
+apply: a path that resolves outside the team repo is rejected. A non-zero
+exit does not fail init; it is a warning naming the command below. Without a
+terminal (stdin is not a TTY, `CI` or `TEAMAI_NONINTERACTIVE` is set) init
+skips the script and says how to run it later:
+
+```bash
+teamai script run postInit   # runs the script again, then syncs MCP servers
+```
+
+`script run` runs the script whether or not there is a terminal, and exits
+with the script's code when it fails. An older CLI that does not know
+`postInit` reads the same `teamai.yaml` and ignores it.
+
 ### CI Integration
 
 `teamai ci extract-mr --output <dir> --dry-run` refuses before provider access or artifact creation. It prints `teamai ci extract-mr --output has no --dry-run preview, nothing was run` and exits 1. Omit `--output` to preview, or omit `--dry-run` to write artifacts.

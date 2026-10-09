@@ -2412,6 +2412,32 @@ scripts:
 或拉起失败只会是 `~/.teamai/debug.log` 里的一行（`postPull: launched /
 exited / timed out`），绝不会让 pull 失败。
 
+### Init 后脚本
+
+`postPull` 在后台运行，无法向成员提问。MCP server 需要个人 token（`mcp.yaml`
+里的 `${TAPD_ACCESS_TOKEN}`）的团队改为声明 `scripts.postInit`：一个 Node
+入口，`teamai init` 在本地配置与 hooks 就位之后、收尾的 pull 之前运行它一次，
+终端接入、不设时限，因此它收集到的内容（比如通过 `teamai env set`）会由同一次
+pull 交付：
+
+```yaml
+scripts:
+  postInit:
+    path: scripts/setup-env.mjs
+```
+
+脚本可读到 `TEAMAI_REPO`（运行所在的团队仓克隆）和 `TEAMAI_SCOPE`（`user` 或
+`project`）。路径规则与 `postPull` 相同：解析到团队仓之外会被拒绝。非零退出不会
+让 init 失败，只会给出警告并提示下面的命令。没有终端时（stdin 不是 TTY、设置了
+`CI` 或 `TEAMAI_NONINTERACTIVE`）init 会跳过脚本并说明之后如何运行：
+
+```bash
+teamai script run postInit   # 再次运行该脚本，然后同步 MCP server
+```
+
+`script run` 不论有没有终端都会运行脚本，脚本失败时以脚本的退出码退出。不认识
+`postInit` 的旧版 CLI 读取同一份 `teamai.yaml` 时会忽略它。
+
 ### CI 集成
 
 `teamai ci extract-mr --output <dir> --dry-run` 在访问 provider 或创建 artifacts 前拒绝执行，打印 `teamai ci extract-mr --output has no --dry-run preview, nothing was run` 并以退出码 1 结束。省略 `--output` 可执行预览；去掉 `--dry-run` 可写入 artifacts。

@@ -64,6 +64,7 @@ export const DRY_RUN_PREVIEW: ReadonlySet<string> = new Set([
   'env set',
   'env unset',
   'env exec',
+  'script run',
   'hooks list',
   'hooks inject',
   'mcp list',
