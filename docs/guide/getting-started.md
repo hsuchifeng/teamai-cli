@@ -22,7 +22,7 @@
    cd /path/to/my-project
    teamai init https://github.com/your-org/your-repo
    ```
-   `init` detects the Git host, signs you in if needed, registers you as a member, installs a session-start hook in the AI tools it finds, and pulls.
+   `init` detects the Git host, signs you in if needed, registers you as a member, and installs a session-start hook in the AI tools it finds. It does not copy team resources: they arrive at the next session start, or when you run `teamai pull`.
 3. Check it.
    ```bash
    teamai doctor      # every line should pass
@@ -49,9 +49,10 @@ You need the repo URL.
    teamai init https://github.com/your-org/your-repo
    ```
    Add `--scope user` to install into your home directory. Every project on this machine then sees the files. Without that flag, files install into this project.
-2. Check it.
+2. Pull the team's resources now (or let the next AI session do it), then check.
    ```bash
-   teamai doctor
+   teamai pull
+   teamai doctor      # every line should pass
    teamai list        # the team's skills, rules, docs, env, agents, hooks and MCP servers
    ```
 3. Open your AI tool in that project.

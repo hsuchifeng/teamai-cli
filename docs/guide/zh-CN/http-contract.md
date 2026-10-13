@@ -12,7 +12,7 @@ ClawPro 为 `teamai init --http <baseUrl>` 实现下面三个接口。请求带 
 |------|------|------|
 | `{baseUrl}/api/local-agent/report` | POST | session 启动：登记 agent 和已装 skill |
 | `{baseUrl}/api/local-agent/sync` | POST | 上报状态，返回待执行的命令 |
-| `{baseUrl}/api/local-agent/commands/ack` | POST | 回执一条命令：`{ id, status, error }` |
+| `{baseUrl}/api/local-agent/commands/ack` | POST | 回执一条命令：`{ id, type, status, error, version }` |
 
 `sync` 返回待执行命令：
 

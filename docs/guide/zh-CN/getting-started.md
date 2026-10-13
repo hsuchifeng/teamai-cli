@@ -22,7 +22,7 @@
    cd /path/to/my-project
    teamai init https://github.com/your-org/your-repo
    ```
-   `init` 会识别 Git 平台、需要时让你登录、把你登记为成员、给找到的 AI 工具装上会话启动钩子，最后做一次 pull。
+   `init` 会识别 Git 平台、需要时让你登录、把你登记为成员、给找到的 AI 工具装上会话启动钩子。它不会复制团队资源：资源在下一次会话启动时到达，或在你运行 `teamai pull` 时到达。
 3. 检查一下。
    ```bash
    teamai doctor      # 每一行都应通过
@@ -49,9 +49,10 @@
    teamai init https://github.com/your-org/your-repo
    ```
    加上 `--scope user` 会装到用户主目录，这台机器上的每个项目都能看见。不加的话，文件只进当前项目。
-2. 检查一下。
+2. 现在拉取团队资源（也可以等下一次 AI 会话自动拉），然后检查。
    ```bash
-   teamai doctor
+   teamai pull
+   teamai doctor      # 每一行都应通过
    teamai list        # 团队的 skills、rules、docs、env、agents、hooks 和 MCP server
    ```
 3. 在这个项目里打开 AI 工具。

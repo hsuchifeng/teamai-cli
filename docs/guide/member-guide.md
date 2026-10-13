@@ -30,7 +30,10 @@ Read-only, no git:
 teamai init --http https://your-team-host/api --token <api-key>
 ```
 
+Init does not copy team resources. Pull them now, or let the next AI session do it:
+
 ```bash
+teamai pull
 teamai doctor
 teamai list
 ```
@@ -114,7 +117,7 @@ sharing:
 
 `false` removes the commit trailer. `true` keeps it. Leave the block out and teamai does not change each tool's own setting.
 
-`coAuthorEnabled` in `~/.teamai/config.yaml` on your machine wins. The next `teamai pull` writes each tool's config.
+`coAuthorEnabled` in this scope's local config on your machine wins. The next `teamai pull` writes each tool's config.
 
 ## Keeping Delivered Files Out of Git
 

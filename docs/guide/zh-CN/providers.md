@@ -35,7 +35,7 @@ https://git.example.com/group/repo.git  → git
 git@git.example.com:group/repo.git      → git
 ```
 
-初始化成功后，provider 选择会写入 team 仓库的 `teamai.yaml` 的 `provider` 字段，后续 `push` / `pull` 都按这个值来；成员用 `--provider` 保存在本机的选择优先于它（见下节）。
+init 新建团队仓库的 `teamai.yaml` 时，会把识别出的 provider 写进 `provider` 字段，后续 `push` / `pull` 都按这个值来；成员用 `--provider` 保存在本机的选择优先于它（见下节）。
 
 ### 手动指定 provider（`--provider`）
 

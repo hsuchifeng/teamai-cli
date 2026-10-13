@@ -71,11 +71,14 @@ sharing:
 .teamai/skills/
 .teamai/rules/
 .teamai/docs/
-.teamai/env/env.yaml
-.teamai/mcp/mcp.yaml
+.teamai/learnings/
+.teamai/env/
+.teamai/agents/
+.teamai/hooks/
+.teamai/mcp/
 ```
 
-skill 和 rule 用 `teamai push`。`docs/`、`hooks/hooks.yaml`、`mcp/mcp.yaml`、`models/models.yaml` 自己 commit。
+skill、rule、agent 和 env 用 `teamai push`。`docs/`、`hooks/hooks.yaml`、`mcp/mcp.yaml`、`models/models.yaml` 自己 commit。
 
 ### Git 权限
 
@@ -127,7 +130,7 @@ scripts:
 
 项目是正在做的服务。在当前目录设成这个项目后，会再收到项目上声明的资源。
 
-`knowledge` 包含 rules 和共享指令（`claudemd/`）。项目还可以单独声明 learnings、env、hooks、mcp、models、docs、wiki。
+`knowledge` 包含 rules 和共享指令（`claudemd/`）。角色和项目还可以声明 env、hooks、mcp、models、docs、wiki。只有项目能声明 learnings。
 
 ```yaml
 # manifest/roles.yaml
@@ -170,7 +173,7 @@ teamai pull
 
 ## 标签
 
-标签打在 skill 或 rule 上，存在团队仓库的 `tags.yaml`。成员在自己机器上订阅。没订阅任何标签时，标签不参与。订阅之后，带这些标签的 skill 和 rule 也会拉下来。没打标签的仍按角色和项目发。
+标签打在 skill 或 rule 上，存在团队仓库的 `tags.yaml`。成员在自己机器上订阅。没订阅任何标签时，标签不参与。订阅之后，带这些标签的 skill 也会拉下来；只带未订阅标签的 rule 会被跳过。没打标签的仍按角色和项目发。
 
 ```yaml
 # tags.yaml

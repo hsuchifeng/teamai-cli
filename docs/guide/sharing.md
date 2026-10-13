@@ -97,6 +97,7 @@ env/<ns>/env.yaml         hooks/<ns>/hooks.yaml         mcp/<ns>/mcp.yaml
 
 ```yaml
 # manifest/projects.yaml
+version: 1
 projects:
   - id: checkout
     resources:
@@ -261,6 +262,7 @@ Put files in the team repo's `docs/`. Members receive them on `pull`. To limit a
 
 ```yaml
 # manifest/projects.yaml
+version: 1
 projects:
   - id: checkout
     resources:

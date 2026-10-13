@@ -12,7 +12,7 @@ End users only need `teamai init --http`, described in [Member Onboarding](./mem
 |------|------|------|
 | `{baseUrl}/api/local-agent/report` | POST | Session start: register the agent and installed skills |
 | `{baseUrl}/api/local-agent/sync` | POST | Report status and return commands to run |
-| `{baseUrl}/api/local-agent/commands/ack` | POST | Acknowledge one command: `{ id, status, error }` |
+| `{baseUrl}/api/local-agent/commands/ack` | POST | Acknowledge one command: `{ id, type, status, error, version }` |
 
 `sync` returns the commands:
 

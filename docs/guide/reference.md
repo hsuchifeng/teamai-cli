@@ -36,7 +36,7 @@ sharing:
   recall:
     enabled: false
   docs:
-    localDir: ./.teamai/docs   # default ~/.teamai/docs
+    localDir: ./.teamai/docs   # default: <project>/.teamai/docs, or ~/.teamai/docs in user scope
   env:
     injectShellProfile: true
   coAuthor:

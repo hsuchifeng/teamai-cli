@@ -36,7 +36,7 @@ sharing:
   recall:
     enabled: false
   docs:
-    localDir: ./.teamai/docs   # 默认 ~/.teamai/docs
+    localDir: ./.teamai/docs   # 默认：<项目>/.teamai/docs；user 作用域为 ~/.teamai/docs
   env:
     injectShellProfile: true
   coAuthor:

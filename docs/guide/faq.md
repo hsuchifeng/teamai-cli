@@ -81,7 +81,7 @@ teamai hooks inject --dry-run # Preview first
 teamai hooks inject  # Re-inject
 ```
 
-**Q: `push` says "no new resources detected"?**
+**Q: `push` says "No new or modified resources to push"?**
 
 `push` only detects new or modified resources. If nothing changed, there's nothing to push.
 

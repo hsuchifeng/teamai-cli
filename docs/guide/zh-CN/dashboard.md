@@ -9,7 +9,7 @@ teamai dashboard
 teamai dashboard --port 8080
 ```
 
-浏览器打开 `http://localhost:3721`。侧栏是总览、团队执行、团队上下文、团队改进。数据是这台机器上的。
+浏览器打开 `http://localhost:3721`。侧栏是总览、团队执行、团队上下文、团队改进。会话数据来自这台机器；团队上下文页会标出自己的数据来源。
 
 ## 人工干预指标（Human Intervention）
 

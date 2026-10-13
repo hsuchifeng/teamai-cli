@@ -73,7 +73,7 @@ teamai recall disable
 teamai recall status
 ```
 
-One machine overrides this with `recallEnabled` in `~/.teamai/config.yaml`. `TEAMAI_RECALL_DISABLED=1` forces it off. While it is off, pull does not install recall. `teamai recall` still searches.
+`teamai recall enable` / `disable` set `recallEnabled` in this machine's local config, which wins over the team setting. While recall is off, pull does not install it; `teamai recall` still searches. `TEAMAI_RECALL_DISABLED=1` only mutes recall's hooks on this machine.
 
 Turning recall off does not silence the SessionStart hint for recently merged MRs. That hint points to `teamai import --from-mr`, which can capture and publish a learning before the team enables recall. Disable this separate hint with `TEAMAI_MR_HINT_DISABLED=1`.
 
@@ -87,7 +87,7 @@ teamai recall maintenance --prune --archive
 teamai recall maintenance --update-quality
 ```
 
-`--archive` puts aside learnings whose confidence is below 0.15. `--update-quality` writes a `.draft.md`. Rename it to `.md` when the draft is right.
+`--archive` puts aside learnings whose confidence is below 0.15. `--update-quality` writes `<file>.md.draft.md` next to each stale learning. When the draft is right, drop the `.draft.md` suffix so it replaces the original.
 
 ### Promoting Learnings
 
@@ -130,6 +130,7 @@ Limit one codebase to some members:
 
 ```yaml
 # manifest/projects.yaml
+version: 1
 projects:
   - id: svc-a
     resources:

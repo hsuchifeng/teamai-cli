@@ -35,7 +35,7 @@ https://git.example.com/group/repo.git  → git
 git@git.example.com:group/repo.git      → git
 ```
 
-After a successful init the provider is written to the `provider` field of the team repo's `teamai.yaml`, and later `push` / `pull` runs follow that value. A member's own `--provider` choice, saved on their machine, takes precedence over it (next section).
+When init creates a new team repo's `teamai.yaml`, it records the detected provider in its `provider` field, and later `push` / `pull` runs follow that value. A member's own `--provider` choice, saved on their machine, takes precedence over it (next section).
 
 ### Choosing a provider by hand (`--provider`)
 

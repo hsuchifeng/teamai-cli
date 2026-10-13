@@ -30,7 +30,10 @@ teamai init https://gitlab.example.com/yourgroup/yourrepo --provider git
 teamai init --http https://your-team-host/api --token <api-key>
 ```
 
+init 不会复制团队资源。现在拉取，或等下一次 AI 会话自动拉取：
+
 ```bash
+teamai pull
 teamai doctor
 teamai list
 ```
@@ -114,7 +117,7 @@ sharing:
 
 `false` 去掉提交尾注，`true` 保留。不写这一项，teamai 不改各工具自己的设置。
 
-本机 `~/.teamai/config.yaml` 的 `coAuthorEnabled` 优先。下一次 `teamai pull` 写入各工具的配置。
+本机当前作用域本地配置里的 `coAuthorEnabled` 优先。下一次 `teamai pull` 写入各工具的配置。
 
 ## 让分发的文件不进入 git
 

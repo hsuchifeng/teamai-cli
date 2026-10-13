@@ -9,7 +9,7 @@ teamai dashboard
 teamai dashboard --port 8080
 ```
 
-Open `http://localhost:3721`. The sidebar is Overview, Team Execution, Team Context, and Team Improvement. The numbers are from this machine.
+Open `http://localhost:3721`. The sidebar is Overview, Team Execution, Team Context, and Team Improvement. Session numbers are from this machine. Team Context shows its own data source.
 
 ## Human Intervention Metrics
 

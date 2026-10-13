@@ -78,7 +78,7 @@ teamai hooks inject --dry-run # 先预览
 teamai hooks inject  # 重新注入
 ```
 
-**Q: push 提示 "no new resources detected"？**
+**Q: push 提示 "No new or modified resources to push"？**
 
 `push` 只检测新增或修改的资源。没有变更时无需推送。
 

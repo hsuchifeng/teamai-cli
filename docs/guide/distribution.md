@@ -71,11 +71,14 @@ sharing:
 .teamai/skills/
 .teamai/rules/
 .teamai/docs/
-.teamai/env/env.yaml
-.teamai/mcp/mcp.yaml
+.teamai/learnings/
+.teamai/env/
+.teamai/agents/
+.teamai/hooks/
+.teamai/mcp/
 ```
 
-`teamai push` sends skills and rules. Commit `docs/`, `hooks/hooks.yaml`, `mcp/mcp.yaml`, and `models/models.yaml` yourself.
+`teamai push` sends skills, rules, agents, and env. Commit `docs/`, `hooks/hooks.yaml`, `mcp/mcp.yaml`, and `models/models.yaml` yourself.
 
 ### Git permissions
 
@@ -127,7 +130,7 @@ A role is a member's job, such as frontend. Someone who sets that role receives 
 
 A project is the service they are working on. After this directory is set to that project, it also receives the resources the project lists.
 
-`knowledge` covers rules and shared instructions (`claudemd/`). A project can also declare learnings, env, hooks, mcp, models, docs, and wiki on its own.
+`knowledge` covers rules and shared instructions (`claudemd/`). Roles and projects can also declare env, hooks, mcp, models, docs, and wiki. Only a project can declare learnings.
 
 ```yaml
 # manifest/roles.yaml
@@ -170,7 +173,7 @@ teamai pull
 
 ## Tags
 
-A tag is on a skill or a rule, in the team repo's `tags.yaml`. A member subscribes on their own machine. With no subscription, tags do nothing. After a subscription, skills and rules that carry those tags are pulled too. Untagged ones still follow roles and projects.
+A tag is on a skill or a rule, in the team repo's `tags.yaml`. A member subscribes on their own machine. With no subscription, tags do nothing. After a subscription, skills with those tags are pulled too, and rules tagged only with tags you did not subscribe to are skipped. Untagged ones still follow roles and projects.
 
 ```yaml
 # tags.yaml

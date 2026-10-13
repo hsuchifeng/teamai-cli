@@ -73,7 +73,7 @@ teamai recall disable
 teamai recall status
 ```
 
-本机覆盖写在 `~/.teamai/config.yaml` 的 `recallEnabled`。`TEAMAI_RECALL_DISABLED=1` 强制关掉。关掉之后 pull 不再安装 recall；直接运行 `teamai recall` 仍然可以搜。
+`teamai recall enable` / `disable` 改的是本机本地配置里的 `recallEnabled`，它优先于团队设置。关掉之后 pull 不再安装 recall；直接运行 `teamai recall` 仍然可以搜。`TEAMAI_RECALL_DISABLED=1` 只让本机的 recall 钩子静默。
 
 关闭 recall 不会隐藏 SessionStart 的近期已合入 MR 提示。这条提示指向 `teamai import --from-mr`，团队在开启 recall 前也可以先提炼并发布 learning。要单独关闭这条提示，设置 `TEAMAI_MR_HINT_DISABLED=1`。
 
@@ -87,7 +87,7 @@ teamai recall maintenance --prune --archive
 teamai recall maintenance --update-quality
 ```
 
-`--archive` 收走置信度低于 0.15 的 learning。`--update-quality` 写出 `.draft.md`，改好后把文件名改成 `.md`。
+`--archive` 收走置信度低于 0.15 的 learning。`--update-quality` 在过期的 learning 旁写出 `<文件>.md.draft.md`。草稿没问题时，去掉 `.draft.md` 后缀，覆盖原文件。
 
 ### 晋升 Learnings
 
@@ -130,6 +130,7 @@ recall 结果里的 `Source freshness:`：`current` 是内容和上次扫描一�
 
 ```yaml
 # manifest/projects.yaml
+version: 1
 projects:
   - id: svc-a
     resources:
