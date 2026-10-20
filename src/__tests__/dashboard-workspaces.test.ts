@@ -134,4 +134,15 @@ describe('dashboardWorkspaces discovery (#809)', () => {
     expect(p, JSON.stringify(workspaces)).toBeDefined();
     expect(p && workspaceEvents(events, p, workspaces).map(e => e.sessionId)).toEqual(['s1']);
   });
+
+  it('lists the unassigned bucket for a session that recorded no cwd (Copilot, #1121)', async () => {
+    home = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'teamai-ws-discovery-')));
+    vi.stubEnv('HOME', home);
+    const copilot: DashboardEvent = { type: 'session_start', timestamp: '2026-09-17T00:00:00Z', sessionId: 's1', tool: 'copilot', cwd: '', dataHomeKey: 'deadbeefdeadbeef' };
+
+    const workspaces = await dashboardWorkspaces([copilot]);
+    const unassigned = workspaces.find(w => w.id === 'unassigned');
+    expect(unassigned, JSON.stringify(workspaces)).toBeDefined();
+    expect(unassigned && workspaceEvents([copilot], unassigned, workspaces).map(e => e.sessionId)).toEqual(['s1']);
+  });
 });

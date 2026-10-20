@@ -177,10 +177,19 @@ function distribution() {
   +(previewError?'<span class="amber">'+e(previewError)+'</span>':'')+'</div>';
  return top+rolesPanel+projectsPanel+actions+previewPanel;
 }
-async function previewSelection() { if(!dist||!distDraft)return; const generation=workspaceGeneration, version=distVersion; previewing=true;previewError='';saveError='';savedNote='';render(); try{ const data=await postJson('/api/distribution/preview',{primaryRole:distDraft.primary,additionalRoles:distDraft.extra,projects:distDraft.projects}); if(generation!==workspaceGeneration||version!==distVersion)return; preview=data; } catch(error){ if(generation!==workspaceGeneration||version!==distVersion)return; preview=null; previewError=error.message; } finally{ if(generation===workspaceGeneration){ previewing=false; if(page==='distribution')render(); } } }
-async function saveSelection() { if(!dist||!distDraft||!preview)return; const generation=workspaceGeneration, version=distVersion; saving=true;saveError='';savedNote='';render(); try{ let revision=dist.revision; if(dist.roles.state==='ok'){ const fresh=await postJson('/api/distribution/roles',{primaryRole:distDraft.primary,additionalRoles:distDraft.extra,revision}); // A workspace switch or draft edit mid-save must stop the chain before
+// Only the halves the team defines and the draft changed: a team with no
+// projects manifest (or no roles manifest) refuses a body that names them, and
+// a workspace with no primary role yet can still change its projects alone.
+function selectionChange() {
+ const sel=dist.selection, body={}, same=(a,b)=>JSON.stringify([...a].sort())===JSON.stringify([...b].sort());
+ if(dist.roles.state==='ok'&&(distDraft.primary!==sel.primaryRole||!same(distDraft.extra,sel.additionalRoles))){ if(!distDraft.primary)return null; body.primaryRole=distDraft.primary; body.additionalRoles=distDraft.extra; }
+ if(dist.projects.state==='ok'&&!same(distDraft.projects,sel.projects))body.projects=distDraft.projects;
+ return body;
+}
+async function previewSelection() { if(!dist||!distDraft)return; const generation=workspaceGeneration, version=distVersion; const change=selectionChange(); if(!change){ preview=null; previewError=t('Pick a primary role first.'); render(); return; } previewing=true;previewError='';saveError='';savedNote='';render(); try{ const data=await postJson('/api/distribution/preview',change); if(generation!==workspaceGeneration||version!==distVersion)return; preview=data; } catch(error){ if(generation!==workspaceGeneration||version!==distVersion)return; preview=null; previewError=error.message; } finally{ if(generation===workspaceGeneration){ previewing=false; if(page==='distribution')render(); } } }
+async function saveSelection() { if(!dist||!distDraft||!preview)return; const generation=workspaceGeneration, version=distVersion; saving=true;saveError='';savedNote='';render(); try{ const change=selectionChange()||{}; let revision=dist.revision; if('primaryRole' in change){ const fresh=await postJson('/api/distribution/roles',{primaryRole:distDraft.primary,additionalRoles:distDraft.extra,revision}); // A workspace switch or draft edit mid-save must stop the chain before
       // the second write: the revision belongs to the old workspace/selection.
-      if(generation!==workspaceGeneration)return; if(version!==distVersion){ saveError='The selection changed while saving. Preview again to save the rest.'; return; } revision=fresh.revision; } if(dist.projects.state==='ok')await postJson('/api/distribution/projects',{projects:distDraft.projects,revision}); if(generation!==workspaceGeneration||version!==distVersion)return; savedNote='Saved. Takes effect on the next pull.'; } catch(error){ if(generation!==workspaceGeneration)return; saveError=error.message; } finally{ if(generation===workspaceGeneration){ saving=false; const note=savedNote, err=saveError; await loadDistribution(); savedNote=note; saveError=err; if(page==='distribution')render(); } } }
+      if(generation!==workspaceGeneration)return; if(version!==distVersion){ saveError='The selection changed while saving. Preview again to save the rest.'; return; } revision=fresh.revision; } if('projects' in change)await postJson('/api/distribution/projects',{projects:distDraft.projects,revision}); if(generation!==workspaceGeneration||version!==distVersion)return; savedNote='Saved. Takes effect on the next pull.'; } catch(error){ if(generation!==workspaceGeneration)return; saveError=error.message; } finally{ if(generation===workspaceGeneration){ saving=false; const note=savedNote, err=saveError; await loadDistribution(); savedNote=note; saveError=err; loadRules(); loadSkills(); if(page==='distribution')render(); } } }
 // Translate static report labels only; never translate knowledge titles, authors, commands or session text.
 function localizeReport() {
  const root=$('kb-content');if(!root)return;
@@ -324,6 +333,8 @@ async function toggleSkillExclude(name, excluded) {
  try {
   const response=await fetch(api('/api/resources/skills/exclusions'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,excluded})});
   if(!response.ok)throw new Error('exclude failed');
+  // What the Distribution page counts as delivered changed too; it reloads on next view.
+  if(generation===workspaceGeneration&&!distLoading)dist=null;
   await loadSkills();
  } catch { if(generation===workspaceGeneration)skillsError=true; } finally { if(generation===workspaceGeneration){skillBusy='';if(page==='resources')render();} }
 }

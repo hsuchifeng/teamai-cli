@@ -235,6 +235,7 @@ export const dashboardMessages: Record<string, string> = {
   "Saved. Takes effect on the next pull.": "已保存。将在下次 pull 时生效。",
   "Preview for the next pull": "下次 pull 的预览",
   "Nothing is written until you save": "保存前不会写入任何内容",
+  "Pick a primary role first.": "请先选择一个主角色。",
   "No change": "无变化",
   "entering": "进入",
   "Pull keeps what is installed until the copies are made equal or renamed.": "冲突解决前，pull 保留已安装的副本；请将两份副本改为一致或重命名其中之一。",
