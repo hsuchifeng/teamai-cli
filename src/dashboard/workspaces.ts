@@ -98,10 +98,11 @@ export async function dashboardWorkspaces(events: DashboardEvent[]): Promise<Das
   // Sessions whose cwd matches no installed project no longer fold into User scope
   // (that silently inflated it). Surface them in a dedicated "unassigned" bucket,
   // but only when such sessions actually exist (PR #604 review #3).
-  const projects = result.filter(w => w.scope === 'project');
-  if (events.some(event => event.cwd && !ownerOf(event, projects))) {
-    result.push({ id: 'unassigned', label: 'Unassigned sessions', scope: 'unassigned', root: '', config: null, roots: [] });
-  }
+  // A session is unassigned when none of its events finds a project, the same
+  // rule workspaceEvents() routes by: a Copilot session records no cwd, and
+  // checking only events with one hid it from every workspace (#1121).
+  const unassigned: DashboardWorkspace = { id: 'unassigned', label: 'Unassigned sessions', scope: 'unassigned', root: '', config: null, roots: [] };
+  if (workspaceEvents(events, unassigned, result).length) result.push(unassigned);
   return result;
 }
 export function workspaceEvents(events: DashboardEvent[], workspace: DashboardWorkspace, workspaces: DashboardWorkspace[]): DashboardEvent[] {
